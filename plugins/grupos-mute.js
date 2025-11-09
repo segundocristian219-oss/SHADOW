@@ -34,35 +34,35 @@ return buf
 
 let handler = async (m, { conn, command, isAdmin }) => {
 if (!m.isGroup) return m.reply('⚠️ Este comando solo funciona en grupos.')
-  const user = m.quoted?.sender || m.mentionedJid?.[0]
-  const sender = m.sender
+const user = m.quoted?.sender || m.mentionedJid?.[0]
+const sender = m.sender
 
-  if (!user) return m.reply('⚠️ Usa: *.mute @usuario* o responde a su mensaje.')
-  if (user === sender) return m.reply('❌ No puedes mutearte a ti mismo.')
-  if (user === conn.user.jid) return m.reply('🤖 No puedes mutear al bot.')
-  if (user === OWNER_LID) return m.reply('👑 No puedes mutear al owner.')
-  if (!(isAdmin || sender === OWNER_LID)) return m.reply('🚫 Solo los administradores pueden usar este comando.')
+if (!user) return m.reply('⚠️ Usa: *.mute @usuario* o responde a su mensaje.')
+if (user === sender) return m.reply('❌ No puedes mutearte a ti mismo.')
+if (user === conn.user.jid) return m.reply('🤖 No puedes mutear al bot.')
+if (user === OWNER_LID) return m.reply('👑 No puedes mutear al owner.')
+if (!(isAdmin || sender === OWNER_LID)) return m.reply('🚫 Solo los administradores pueden usar este comando.')
 
-  const imgUrl = command === 'mute'
+const imgUrl = command === 'mute'
     ? 'https://telegra.ph/file/f8324d9798fa2ed2317bc.png'
     : 'https://telegra.ph/file/aea704d0b242b8c41bf15.png'
 
-  const thumb = await getThumb(imgUrl)
+const thumb = await getThumb(imgUrl)
 
-  const preview = {
-    key: { fromMe: false, participant: '0@s.whatsapp.net', remoteJid: m.chat },
-    message: {
-      locationMessage: {
-        name: command === 'mute' ? 'Usuario muteado' : 'Usuario desmuteado',
-        jpegThumbnail: thumb
-      }
-    }
-  }
+const preview = {
+key: { fromMe: false, participant: '0@s.whatsapp.net', remoteJid: m.chat },
+message: {
+locationMessage: {
+name: command === 'mute' ? 'Usuario muteado' : 'Usuario desmuteado',
+jpegThumbnail: thumb
+}
+}
+}
 
-  if (!mutedData[m.chat]) mutedData[m.chat] = []
+if (!mutedData[m.chat]) mutedData[m.chat] = []
 
-  let name = 'Usuario'
-  try { name = await conn.getName(user) } catch {}
+let name = 'Usuario'
+try { name = await conn.getName(user) } catch {}
 
   if (command === 'mute') {
     if (mutedData[m.chat].includes(user)) return m.reply('⚠️ Ese usuario ya está muteado.')
