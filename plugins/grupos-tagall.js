@@ -1,47 +1,27 @@
-let handler = async (m, { conn }) => {
-  try {
-    if (!m.isGroup)
-      return conn.reply(m.chat, '⚠️ Este comando solo funciona en grupos.', m)
+const handler = async (m, { conn, participants, isAdmin, isOwner }) => {
+  if (!m.isGroup) return;
+  if (!isAdmin && !isOwner) return global.dfail?.('admin', m, conn);
 
-    const groupMetadata = await conn.groupMetadata(m.chat)
-    const participants = groupMetadata.participants
-    const mentions = participants.map(p => p.id)
+  const total = participants.length;
+  let texto = `*!  MENCION GENERAL  !*\n`;
+  texto += `   *PARA ${total} MIEMBROS* 🔔\n\n`;
 
-    // Prefijos -> banderas
-    const flags = {
-      52: '🇲🇽', 54: '🇦🇷', 56: '🇨🇱', 57: '🇨🇴', 58: '🇻🇪',
-      51: '🇵🇪', 55: '🇧🇷', 34: '🇪🇸', 1: '🇺🇸',
-      502: '🇬🇹', 503: '🇸🇻', 504: '🇭🇳', 505: '🇳🇮',
-      506: '🇨🇷', 507: '🇵🇦', 591: '🇧🇴', 593: '🇪🇨',
-      595: '🇵🇾', 598: '🇺🇾'
-    }
-
-    let text = '📢 *MENCIÓN GLOBAL*\n\n'
-
-    for (const user of participants) {
-      const num = user.id.split('@')[0]
-      const prefix = num.replace('+', '').slice(0, 3)
-      const flag =
-        flags[prefix] ||
-        flags[prefix.slice(0, 2)] ||
-        '🏳️'
-      text += `${flag} @${num}\n`
-    }
-
-    await conn.sendMessage(
-      m.chat,
-      {
-        text,
-        contextInfo: { mentionedJid: mentions }
-      },
-      { quoted: m }
-    )
-  } catch (err) {
-    console.error('Error en .todos:', err)
-    await conn.reply(m.chat, '⚠️ Error al mencionar: ' + err.message, m)
+  for (const user of participants) {
+    const numero = user.id.split('@')[0];
+    texto += `┊» 🚩 @${numero}\n`;
   }
-}
 
-handler.command = /^todos$/i
-handler.group = true
-export default handler
+  await conn.sendMessage(m.chat, { react: { text: '🔔', key: m.key } });
+
+  await conn.sendMessage(m.chat, {
+    text: texto,
+    mentions: participants.map(p => p.id)
+  }, { quoted: m });
+};
+
+handler.customPrefix = /^\.?(todos)$/i;
+handler.command = new RegExp();
+handler.group = true;
+handler.admin = true;
+
+export default handler;
