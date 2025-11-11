@@ -13,49 +13,28 @@ let handler = async (m, { conn }) => {
     const botNumber = conn.user?.id || conn.user?.jid;
     const mentions = participants.filter(id => id !== botNumber);
 
-    // === CASO 1: Mensaje citado (foto, video, sticker, etc.) ===
+    // === CASO 1: Si citó un mensaje (imagen, texto, video, sticker, etc.) ===
     if (m.quoted) {
-      const quoted = m.quoted;
-      const msg = quoted.msg || quoted;
-
       await conn.sendMessage(m.chat, {
         text: '📣 *Notificación:* mensaje reenviado',
         mentions
       }, { quoted: m });
 
-      // Detectamos tipo de mensaje citado
-      const type = Object.keys(msg)[0];
-      const content = msg[type];
-
-      // Si es imagen, video o sticker
-      if (/(image|video|sticker|document|audio)/.test(type)) {
-        const media = await quoted.download?.(); // Descarga el contenido
-        if (media) {
-          await conn.sendMessage(m.chat, {
-            [type.split('Message')[0]]: media,
-            caption: quoted.text || quoted.caption || '',
-            mentions
-          }, { quoted: m });
-          return;
-        }
-      }
-
-      // Si no es media, reenviamos directamente el texto
-      await conn.sendMessage(m.chat, {
-        text: quoted.text || '📄 *Mensaje reenviado*',
-        mentions
-      }, { quoted: m });
+      // Reenviamos tal cual el mensaje citado
+      await conn.copyNForward(m.chat, m.quoted.fakeObj || m.quoted, true);
       return;
     }
 
-    // === CASO 2: Texto simple (.n hola) ===
+    // === CASO 2: Si solo puso texto (.n hola) ===
     if (text.length > 0) {
       await conn.sendMessage(m.chat, {
         text: '📣 *Notificación:* mensaje reenviado',
         mentions
       }, { quoted: m });
 
-      await conn.sendMessage(m.chat, { text, mentions }, { quoted: m });
+      await conn.sendMessage(m.chat, {
+        text
+      }, { quoted: m });
       return;
     }
 
