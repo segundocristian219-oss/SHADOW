@@ -3,7 +3,7 @@ let handler = async (m, { conn }) => {
     if (!m.isGroup)
       return conn.reply(m.chat, '⚠️ Este comando solo funciona en grupos.', m);
 
-    // Texto después del .n
+    // Extraer texto después de .n
     const body = m.text || '';
     const text = body.replace(/^(\.n|n)\s*/i, '').trim();
 
@@ -13,35 +13,43 @@ let handler = async (m, { conn }) => {
     const botNumber = conn.user?.id || conn.user?.jid;
     const mentions = participants.filter(id => id !== botNumber);
 
-    // === CASO 1: Mensaje citado (foto, video, sticker, etc.) ===
-    if (m.quoted) {
-      // Tomamos el objeto completo del mensaje citado
-      const quoted = m.quoted.fakeObj || m.quoted;
+    // Detectar si hay mensaje citado válido
+    const quoted = (m.quoted && (m.quoted.fakeObj || m.quoted)) || null;
 
+    if (quoted) {
       await conn.sendMessage(m.chat, {
         text: '📣 *Notificación:* mensaje reenviado',
         mentions
       }, { quoted: m });
 
-      // Reenviar usando la estructura original
+      // Reenviar el mensaje citado
       await conn.sendMessage(m.chat, { forward: quoted }, { quoted: m });
+
+      // Si hay texto adicional, lo mandamos como caption (pegado a la imagen/video)
+      if (text.length > 0) {
+        try {
+          // Intentar editar el mensaje reenviado agregando caption
+          await conn.sendMessage(m.chat, { text }, { quoted: quoted });
+        } catch {
+          // Si no se puede como caption, lo manda aparte
+          await conn.sendMessage(m.chat, { text }, { quoted: m });
+        }
+      }
       return;
     }
 
-    // === CASO 2: Texto simple (.n hola) ===
+    // Si no hay mensaje citado pero sí texto
     if (text.length > 0) {
       await conn.sendMessage(m.chat, {
         text: '📣 *Notificación:* mensaje reenviado',
         mentions
       }, { quoted: m });
 
-      await conn.sendMessage(m.chat, {
-        text
-      }, { quoted: m });
+      await conn.sendMessage(m.chat, { text }, { quoted: m });
       return;
     }
 
-    // === CASO 3: Nada ===
+    // Si no hay texto ni mensaje
     await conn.reply(m.chat, '❌ No hay nada para reenviar.', m);
 
   } catch (err) {
