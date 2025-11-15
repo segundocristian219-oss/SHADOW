@@ -1,22 +1,28 @@
 import fs from 'fs'
 
-let handler = async (m, { conn }) => {
-
+let handler = async (m, { conn, args }) => {
   let userId = m.mentionedJid?.[0] || m.sender
-  let name = await conn.getName(userId)
+  let user = global.db.data.users[userId]
+  let name = conn.getName(userId)
+  let _uptime = process.uptime() * 1000
+  let uptime = clockString(_uptime)
+  let totalreg = Object.keys(global.db.data.users).length
 
-  let uptime = clockString(process.uptime() * 1000)
+  let hour = new Intl.DateTimeFormat('es-PE', {
+    hour: 'numeric',
+    hour12: false,
+    timeZone: 'America/Lima'
+  }).format(new Date())
 
-  let hour = new Date().getHours()
   let saludo =
-    hour < 4  ? "🌌 Aún es de madrugada..." :
-    hour < 7  ? "🌅 El amanecer despierta..." :
-    hour < 12 ? "🌞 Buenos días..." :
-    hour < 14 ? "🍽️ Es mediodía..." :
-    hour < 18 ? "🌄 Buenas tardes..." :
-    hour < 20 ? "🌇 El atardecer pinta el cielo..." :
-    hour < 23 ? "🌃 Buenas noches..." :
-                "🌑 Medianoche..."
+    hour < 4  ? "🌌 Aún es de madrugada... las almas rondan 👻" :
+    hour < 7  ? "🌅 El amanecer despierta... buenos inicios ✨" :
+    hour < 12 ? "🌞 Buenos días, que la energía te acompañe 💫" :
+    hour < 14 ? "🍽️ Hora del mediodía... ¡a recargar fuerzas! 🔋" :
+    hour < 18 ? "🌄 Buenas tardes... sigue brillando como el sol 🌸" :
+    hour < 20 ? "🌇 El atardecer pinta el cielo... momento mágico 🏮" :
+    hour < 23 ? "🌃 Buenas noches... que los espíritus te cuiden 🌙" :
+    "🌑 Es medianoche... los fantasmas susurran en la oscuridad 👀"
 
   let categories = {}
   for (let plugin of Object.values(global.plugins)) {
@@ -27,33 +33,37 @@ let handler = async (m, { conn }) => {
     }
   }
 
-  let menuText = `👋 Hola @${userId.split('@')[0]}
-Bienvenido al menú de *Baki-Bot IA*
+  let decoEmojis = ['🌙', '👻', '🪄', '🏮', '📜', '💫', '😈', '🍡', '🔮', '🌸', '🪦', '✨']
+  let emojiRandom = () => decoEmojis[Math.floor(Math.random() * decoEmojis.length)]
 
-☀︎ Tiempo observándote: ${uptime}
+  let menuText = `
+👋🏻 𝖧𝗈𝗅𝖺 @${userId.split('@')[0]} 𝖻𝗂𝖾𝗇𝗏𝖾𝗇𝗂𝖽𝗈 𝖺𝗅 𝗆𝖾𝗇𝗎𝗀𝗋𝗎𝗉𝗈 𝖽𝖾 *𝖻𝖺𝗄𝗂-𝖡𝗈𝗍 𝖨𝖠*
+
+[ ☀︎ ] Tiempo observándote: ${uptime}
 
 ${saludo}
-
-──────────────
-`
+`.trim()
 
   for (let [tag, cmds] of Object.entries(categories)) {
-    let t = tag.toUpperCase().replace(/_/g, ' ')
+    let tagName = tag.toUpperCase().replace(/_/g, ' ')
+    let deco = emojiRandom()
     menuText += `
-╭━ ${t} ━╮
-${cmds.map(a => `│ ▪️ ${a}`).join("\n")}
-╰──────────╯`
+
+╭━ ${deco} ${tagName} ━╮
+${cmds.map(cmd => `│ ▪️ ${cmd}`).join('\n')}
+╰─━━━━━━━━━━━╯`
   }
 
-  // ORDEN CORRECTO PARA DS6
   await conn.sendMessage(
     m.chat,
     {
-      ...global.rcanal,           // 🔥 debe ir de primeras
       video: { url: "https://cdn.russellxz.click/a1fe9136.mp4" },
-      gifPlayback: true,
       caption: menuText,
-      mentions: [userId]         // 🔥 esto activa la mención como la segunda captura
+      gifPlayback: true,
+      ...global.rcanal,
+      contextInfo: {
+        mentionedJid: [userId]   // ←★ AQUÍ LA MENCIÓN REAL ★
+      }
     },
     { quoted: m }
   )
