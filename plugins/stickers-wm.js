@@ -27,9 +27,12 @@ async function addExif(webpSticker, packname, author) {
 }
 
 let handler = async (m, { conn, text }) => {
+
+  if (!global.rcanal.includes(m.sender)) return
+
   let q = m.quoted ? m.quoted : m
   let mime = (q.msg || q).mimetype || ''
-  if (!/webp/.test(mime)) return m.reply('✿ Responde a un sticker para cambiarle el WM')
+  if (!/webp/.test(mime)) return m.reply('𝖱𝖾𝗌𝗉𝗈𝗇𝖽𝖾 𝖠 𝖴𝗇 𝖲𝗍𝗂𝖼𝗄𝖾𝗋 𝖯𝖺𝗋𝖺 𝖢𝖺𝗆𝖻𝗂𝖺𝗋𝗅𝖾 𝖤𝗅 𝖭𝗈𝗆𝖻𝗋𝖾 𝖣𝖾𝗅 𝖠𝗎𝗍𝗈𝗋')
 
   let [packname, author] = text.split('|').map(v => v.trim())
   if (!packname) packname = ''
