@@ -1,49 +1,70 @@
 import fs from 'fs';
 import path from 'path';
 import { downloadContentFromMessage } from '@whiskeysockets/baileys';
+import PDFDocument from 'pdfkit';
 
 const handler = async (m, { conn }) => {
   const q = m.quoted;
 
-  if (!q || !q.message || !q.message.documentMessage) {
-    return m.reply("📄 *Responde a un documento .pdf para convertirlo.*");
+  if (!q || !q.message) {
+    return m.reply("📸 Responde a una *imagen* y usa el comando.");
   }
 
-  const mime = q.message.documentMessage.mimetype || "";
-  if (!mime.includes("pdf")) {
-    return m.reply("❌ *El archivo respondido no es un PDF.*");
+  // detectar si es imagen
+  const img = q.message.imageMessage;
+  if (!img) {
+    return m.reply("❌ *Ese mensaje no contiene una imagen.*");
   }
 
   try {
-    const fileName = q.message.documentMessage.fileName || "archivo.pdf";
-    const stream = await downloadContentFromMessage(q.message.documentMessage, 'document');
+    // carpeta tmp
+    const tmp = path.join(process.cwd(), "tmp");
+    if (!fs.existsSync(tmp)) fs.mkdirSync(tmp, { recursive: true });
 
-    const tempDir = path.join(process.cwd(), "tmp");
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    // descargar imagen
+    const stream = await downloadContentFromMessage(img, 'image');
+    const imgPath = path.join(tmp, `image_${Date.now()}.jpg`);
+    const writer = fs.createWriteStream(imgPath);
 
-    const filePath = path.join(tempDir, fileName);
-    const writer = fs.createWriteStream(filePath);
-
-    for await (const chunk of stream) {
-      writer.write(chunk);
-    }
+    for await (const chunk of stream) writer.write(chunk);
     writer.end();
 
-    // Esperar a que se cierre el archivo
-    await new Promise(resolve => writer.on('finish', resolve));
+    await new Promise(res => writer.on('finish', res));
 
+    // convertir la imagen → PDF
+    const pdfPath = imgPath.replace(".jpg", ".pdf");
+    const doc = new PDFDocument({ autoFirstPage: false });
+    const pdfStream = fs.createWriteStream(pdfPath);
+    doc.pipe(pdfStream);
+
+    const imgSize = doc.openImage(imgPath);
+
+    // crear página del tamaño de la imagen
+    doc.addPage({
+      size: [imgSize.width, imgSize.height]
+    });
+
+    doc.image(imgPath, 0, 0, { width: imgSize.width, height: imgSize.height });
+    doc.end();
+
+    await new Promise(res => pdfStream.on('finish', res));
+
+    // mandar PDF
     await conn.sendMessage(m.chat, {
-      document: fs.readFileSync(filePath),
+      document: fs.readFileSync(pdfPath),
       mimetype: "application/pdf",
-      fileName
+      fileName: "imagen.pdf"
     }, { quoted: m });
 
-    fs.unlinkSync(filePath); // limpiar
-  } catch (error) {
-    console.error(error);
-    m.reply("❌ *Error al procesar el PDF.*");
+    // limpiar
+    fs.unlinkSync(imgPath);
+    fs.unlinkSync(pdfPath);
+
+  } catch (e) {
+    console.error(e);
+    m.reply("❌ *Error al convertir la imagen a PDF.*");
   }
 };
 
-handler.command = ["pdf", "topdf"];
+handler.command = ["pdf", "img2pdf"];
 export default handler;
