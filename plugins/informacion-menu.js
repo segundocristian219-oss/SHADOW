@@ -73,8 +73,8 @@ ${cmds.map(cmd => `│ ▪️ ${cmd}`).join('\n')}
       mentionedJid: [m.sender, userId],
       isForwarded: true,
       forwardedNewsletterMessageInfo: {
-        newsletterJid: '120363424241780448@newsletter',
-        newsletterName: '𝐒𝐨𝐲𝐌𝐚𝐲𝐜𝐨𝐥 <𝟑 • Actualizaciones',
+        newsletterJid: '120363402177795471@newsletter',
+        newsletterName: '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍 𝖣𝖾𝗌𝖺𝗋𝗋𝗈𝗅𝗅𝗈',
         serverMessageId: -1,
       },
       forwardingScore: 999
