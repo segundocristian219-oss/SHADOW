@@ -2,11 +2,10 @@ import fs from 'fs'
 
 let handler = async (m, { conn, args }) => {
   let userId = m.mentionedJid?.[0] || m.sender
-  let user = global.db.data.users[userId]
-  let name = conn.getName(userId)
+  let name = await conn.getName(userId)
+
   let _uptime = process.uptime() * 1000
   let uptime = clockString(_uptime)
-  let totalreg = Object.keys(global.db.data.users).length
 
   let hour = new Intl.DateTimeFormat('es-PE', {
     hour: 'numeric',
@@ -15,14 +14,14 @@ let handler = async (m, { conn, args }) => {
   }).format(new Date())
 
   let saludo =
-    hour < 4  ? "🌌 Aún es de madrugada... las almas rondan 👻" :
-    hour < 7  ? "🌅 El amanecer despierta... buenos inicios ✨" :
-    hour < 12 ? "🌞 Buenos días, que la energía te acompañe 💫" :
-    hour < 14 ? "🍽️ Hora del mediodía... ¡a recargar fuerzas! 🔋" :
-    hour < 18 ? "🌄 Buenas tardes... sigue brillando como el sol 🌸" :
-    hour < 20 ? "🌇 El atardecer pinta el cielo... momento mágico 🏮" :
-    hour < 23 ? "🌃 Buenas noches... que los espíritus te cuiden 🌙" :
-    "🌑 Es medianoche... los fantasmas susurran en la oscuridad 👀"
+    hour < 4  ? "🌌 Aún es de madrugada..." :
+    hour < 7  ? "🌅 El amanecer despierta..." :
+    hour < 12 ? "🌞 Buenos días..." :
+    hour < 14 ? "🍽️ Hora del mediodía..." :
+    hour < 18 ? "🌄 Buenas tardes..." :
+    hour < 20 ? "🌇 El atardecer pinta el cielo..." :
+    hour < 23 ? "🌃 Buenas noches..." :
+                "🌑 Medianoche... 👀"
 
   let categories = {}
   for (let plugin of Object.values(global.plugins)) {
@@ -33,25 +32,21 @@ let handler = async (m, { conn, args }) => {
     }
   }
 
-  let decoEmojis = ['🌙', '👻', '🪄', '🏮', '📜', '💫', '😈', '🍡', '🔮', '🌸', '🪦', '✨']
-  let emojiRandom = () => decoEmojis[Math.floor(Math.random() * decoEmojis.length)]
+  let menuText = `👋 Hola @${userId.split('@')[0]}
+Bienvenido al menú de *Baki-Bot IA*
 
-  let menuText = `
-👋🏻 𝖧𝗈𝗅𝖺 @${userId.split('@')[0]} 𝖻𝗂𝖾𝗇𝗏𝖾𝗇𝗂𝖽𝗈 𝖺𝗅 𝗆𝖾𝗇𝗎𝗀𝗋𝗎𝗉𝗈 𝖽𝖾 *𝖻𝖺𝗄𝗂-𝖡𝗈𝗍 𝖨𝖠*
-
-[ ☀︎ ] Tiempo observándote: ${uptime}
+☀︎ Tiempo observándote: ${uptime}
 
 ${saludo}
-`.trim()
+`
 
   for (let [tag, cmds] of Object.entries(categories)) {
     let tagName = tag.toUpperCase().replace(/_/g, ' ')
-    let deco = emojiRandom()
     menuText += `
 
-╭━ ${deco} ${tagName} ━╮
+╭━ ${tagName} ━╮
 ${cmds.map(cmd => `│ ▪️ ${cmd}`).join('\n')}
-╰─━━━━━━━━━━━╯`
+╰──────────────╯`
   }
 
   await conn.sendMessage(
