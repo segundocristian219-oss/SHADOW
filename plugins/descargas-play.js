@@ -135,6 +135,7 @@ async function prepareFormats(videoUrl, id) {
     } catch {}
   }
 }
+
 async function sendFile(conn, chatId, filePath, title, asDocument, type, quoted) {
   if (!fs.existsSync(filePath)) return
 
@@ -243,6 +244,7 @@ async function handleDownload(conn, job, choice) {
     }
   }
 }
+
 const handler = async (msg, { conn, text, command }) => {
   const pref = global.prefixes?.[0] || "."
 
@@ -353,55 +355,12 @@ handler.before = async (msg, { conn }) => {
   handleDownload(conn, job, emoji)
 }
 
-
 handler.command = ["play","clean"]
 export default handler
 
-setInterval(() => {
-  const now = Date.now()
-  let totalDeleted = 0
-  let countDeleted = 0
-
-  for (const [id, data] of Object.entries(cache)) {
-    if (now - data.timestamp > 20 * 24 * 60 * 60 * 1000) {
-      for (const f of Object.values(data.files)) {
-        if (fs.existsSync(f)) {
-          try {
-            totalDeleted += fs.statSync(f).size
-            fs.unlinkSync(f)
-            countDeleted++
-          } catch {}
-        }
-      }
-      delete cache[id]
-    }
-  }
-
-  const files = fs.readdirSync(TMP_DIR).map(f => path.join(TMP_DIR, f))
-  for (const f of files) {
-    try {
-      const stats = fs.statSync(f)
-      if (now - stats.mtimeMs > 20 * 24 * 60 * 60 * 1000) {
-        totalDeleted += stats.size
-        fs.unlinkSync(f)
-        countDeleted++
-      }
-    } catch {}
-  }
-
-  if (countDeleted) {
-    const freed = (totalDeleted / (1024 * 1024)).toFixed(2)
-    console.log(`🧹 Limpieza automática: Archivos eliminados: ${countDeleted}, Espacio liberado: ${freed} MB`)
-  }
-}, 60 * 60 * 1000)
-
-
-// -------------------------------------------------------------------------
-// 🔥 Limpieza avanzada TMP integrada (segura, no bloqueante, PRO SYSTEM)
-// -------------------------------------------------------------------------
 const MAX_TMP_FILES = 300
 const MAX_TMP_SIZE_MB = 2000
-const FILE_EXPIRATION = 20 * 24 * 60 * 60 * 1000 // 20 días
+const FILE_EXPIRATION = 20 * 24 * 60 * 60 * 1000
 
 function isFileInUse(filePath) {
   try {
@@ -424,23 +383,20 @@ function getDirSize(files) {
 function cleanupTmp() {
   try {
     if (!fs.existsSync(TMP_DIR)) return
-    
+
     let files = fs.readdirSync(TMP_DIR).map(f => path.join(TMP_DIR, f))
     const now = Date.now()
     let deleted = 0
     let freed = 0
 
-    // Ordenar por fecha (viejos primero)
     files.sort((a, b) => fs.statSync(a).mtimeMs - fs.statSync(b).mtimeMs)
 
     for (const file of files) {
       try {
         const stats = fs.statSync(file)
 
-        // 1) Si está en uso, omitir
         if (isFileInUse(file)) continue
 
-        // 2) Archivos corruptos / basura < 100KB
         if (stats.size < 100 * 1024) {
           freed += stats.size
           fs.unlinkSync(file)
@@ -448,7 +404,6 @@ function cleanupTmp() {
           continue
         }
 
-        // 3) Archivos expirados (>20 días)
         if (now - stats.mtimeMs > FILE_EXPIRATION) {
           freed += stats.size
           fs.unlinkSync(file)
@@ -458,32 +413,28 @@ function cleanupTmp() {
       } catch {}
     }
 
-    // Recalcular archivos después de borrar basura
     files = fs.readdirSync(TMP_DIR).map(f => path.join(TMP_DIR, f))
     files.sort((a, b) => fs.statSync(a).mtimeMs - fs.statSync(b).mtimeMs)
 
     let totalMB = getDirSize(files) / (1024 * 1024)
 
-    // Control de espacio y límite de archivos
     for (const file of files) {
       if (totalMB <= MAX_TMP_SIZE_MB && files.length <= MAX_TMP_FILES) break
-      
+
       try {
         if (isFileInUse(file)) continue
 
         const size = fs.statSync(file).size
         fs.unlinkSync(file)
-        
-        totalMB -= size / (1024 * 1024)
-        files = files.filter(f => f !== file)
 
+        totalMB -= size / (1024 * 1024)
         deleted++
         freed += size
       } catch {}
     }
 
     if (deleted > 0) {
-      console.log(`🧹 Limpieza avanzada TMP → Eliminados: ${deleted}, Liberado: ${(freed/1024/1024).toFixed(2)} MB`)
+      console.log(`🧹 Limpieza PRO → Eliminados: ${deleted}, Liberado: ${(freed / 1024 / 1024).toFixed(2)} MB`)
     }
 
   } catch (err) {
@@ -491,5 +442,4 @@ function cleanupTmp() {
   }
 }
 
-// Ejecutar cada 30 minutos sin bloquear el bot
 setInterval(() => setTimeout(cleanupTmp, 0), 30 * 60 * 1000)
