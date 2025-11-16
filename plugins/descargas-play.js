@@ -12,7 +12,7 @@ const TMP_DIR = path.join(process.cwd(), "tmp")
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
 
 const SKY_BASE = process.env.API_BASE || "https://api-sky.ultraplus.click"
-const SKY_KEY = process.env.API_KEY || "Russellxz"
+const SKY_KEY = process.env.API_KEY || "mvwTRkY8iPpP"
 
 const pending = {}
 const cache = {}
