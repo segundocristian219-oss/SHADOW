@@ -5,19 +5,18 @@ import path from "path"
 import ffmpeg from "fluent-ffmpeg"
 import { promisify } from "util"
 import { pipeline } from "stream"
+import crypto from "crypto"
+
 const streamPipe = promisify(pipeline)
+const TMP_DIR = path.join(process.cwd(), "tmp")
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
 
-const downloadPath = "./.downloads"
-if (!fs.existsSync(downloadPath)) fs.mkdirSync(downloadPath)
+const SKY_BASE = process.env.API_BASE || "https://api-sky.ultraplus.click"
+const SKY_KEY = process.env.API_KEY || "mvwTRkY8iPpP"
+const SKY_MIRROR = "https://api-sky-mirror.ultra.workers.dev"
 
-const taskQueue = new Map()
-
-function hash(t) {
-  return Buffer.from(t).toString("base64").replace(/=/g, "")
-}
-
-function checkCache(p) {
-  return fs.existsSync(p) && fs.statSync(p).size > 1024 * 60
-}
-
-const wait = ms => new Promise(r => setTimeout(r, ms))
+const pending = {}
+const cache = {}
+const MAX_CONCURRENT = 3
+let activeDownloads = 0
+const downloadQueue = []
