@@ -401,6 +401,42 @@ const handler = async (msg, { conn, text, command }) => {
   prepareFormatsPriority(videoUrl)
 
   // Borra el pending después de 10 minutos
-  setTimeout(() => {
-    delete pending[preview.key.id]
-  }, 10 * 60 *
+setTimeout(() => {
+  delete pending[preview.key.id]
+}, 10 * 60 * 1000) // 10 minutos en ms
+
+await conn.sendMessage(msg.key.remoteJid, { react: { text: "✅", key: msg.key } })
+
+if (!conn._listeners) conn._listeners = {}
+if (!conn._listeners.play) {
+  conn._listeners.play = true
+  conn.ev.on("messages.upsert", async ev => {
+    for (const m of ev.messages || []) {
+      const react = m.message?.reactionMessage
+      if (!react) continue
+      const { key: reactKey, text: emoji, sender } = react
+      const job = pending[reactKey?.id]
+      if (!job || !["👍","❤️","📄","📁"].includes(emoji)) continue
+      if ((sender || m.key.participant) !== job.sender) {
+        await conn.sendMessage(job.chatId, { text: "❌ No autorizado." }, { quoted: job.commandMsg })
+        continue
+      }
+      if (job.downloading) continue
+      job.downloading = true
+
+      const mapping = { "👍": "audio", "❤️": "video", "📄": "audioDoc", "📁": "videoDoc" }
+      const type = mapping[emoji]?.startsWith("audio") ? "audio" : "video"
+      await conn.sendMessage(job.chatId, { text: `⏳ Descargando ${type}...` }, { quoted: job.commandMsg })
+
+      try { 
+        await handleDownload(conn, job, emoji) 
+      } finally { 
+        job.downloading = false 
+      }
+    }
+  })
+}
+}
+
+handler.command = ["play","clean"]
+export default handler
