@@ -293,3 +293,6 @@ async function joinChannels(conn) {
     }
   } catch {}
 }
+
+handler.command = ['code', 'qr']
+export default handler
