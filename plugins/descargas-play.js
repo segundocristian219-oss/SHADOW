@@ -35,8 +35,33 @@ function fileSizeMB(filePath) {
   const st = safeStat(filePath)
   return st ? st.size / (1024 * 1024) : 0
 }
-function validCache(file) {
-  try { return fs.existsSync(file) && fs.statSync(file).size > 15000 } catch { return false }
+function validCache(file, expectedSize = null) {
+  try {
+    if (!file) return false
+    if (!fs.existsSync(file)) return false
+    const stats = fs.statSync(file)
+    const size = stats.size
+    if (size < 50 * 1024) return false
+    if (expectedSize && expectedSize > 0) {
+      if (size < expectedSize * 0.9) return false
+    }
+    const fd = fs.openSync(file, "r")
+    const header = Buffer.alloc(12)
+    fs.readSync(fd, header, 0, 12, 0)
+    fs.closeSync(fd)
+    const hex = header.toString("hex")
+    if (file.endsWith(".mp3")) {
+      const startsID3 = hex.startsWith("494433")
+      const startsMPEG = hex.startsWith("fff") || hex.startsWith("fffb") || hex.startsWith("fff3")
+      if (!startsID3 && !startsMPEG) return false
+    }
+    if (file.endsWith(".mp4")) {
+      if (!hex.includes("66747970")) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 async function wait(ms) { return new Promise(res => setTimeout(res, ms)) }
 
@@ -131,20 +156,29 @@ async function startDownload(videoUrl, key, mediaUrl) {
     try {
       let start = 0
       if (fs.existsSync(file)) start = fs.statSync(file).size
+
+      let expectedSize = null
+      const probe = await probeRemote(mediaUrl)
+      if (probe.ok && probe.size) expectedSize = probe.size
+
       await queueDownload(() => downloadWithResume(mediaUrl, file, controller.signal, start))
+
       if (key.startsWith("audio") && path.extname(file) !== ".mp3") {
         const mp3 = await convertToMp3(file)
         info.file = mp3
       }
-      if (!validCache(info.file)) {
+
+      if (!validCache(info.file, expectedSize)) {
         safeUnlink(info.file)
         throw new Error("archivo inválido después de descargar")
       }
+
       const mb = fileSizeMB(info.file)
       if (mb > MAX_FILE_MB) {
         safeUnlink(info.file)
         throw new Error(`Archivo demasiado grande (${mb.toFixed(1)} MB)`)
       }
+
       info.status = "done"
       return info.file
     } catch (err) {
@@ -186,15 +220,23 @@ async function resumeDownload(videoUrl, key, mediaUrl) {
     try {
       let start = 0
       if (fs.existsSync(t.file)) start = fs.statSync(t.file).size
+
+      let expectedSize = null
+      const probe = await probeRemote(mediaUrl)
+      if (probe.ok && probe.size) expectedSize = probe.size
+
       await queueDownload(() => downloadWithResume(mediaUrl, t.file, controller.signal, start))
+
       if (key.startsWith("audio") && path.extname(t.file) !== ".mp3") {
         const mp3 = await convertToMp3(t.file)
         t.file = mp3
       }
-      if (!validCache(t.file)) {
+
+      if (!validCache(t.file, expectedSize)) {
         safeUnlink(t.file)
         throw new Error("archivo inválido al reanudar")
       }
+
       t.status = "done"
       return t.file
     } catch (err) {
@@ -273,24 +315,33 @@ const handler = async (msg, { conn, text, command }) => {
 
   if (command === "clean") {
     let deleted = 0, freed = 0
-    const now = Date.now()
+
     for (const [videoUrl, data] of Object.entries(cache)) {
-      if (now - data.timestamp > CACHE_TTL_MS) {
-        for (const f of Object.values(data.files)) {
-          if (validCache(f)) {
-            freed += fs.statSync(f).size; safeUnlink(f); deleted++
+      for (const f of Object.values(data.files)) {
+        try {
+          if (fs.existsSync(f)) {
+            freed += fs.statSync(f).size
+            safeUnlink(f)
+            deleted++
           }
-        }
-        delete cache[videoUrl]
+        } catch {}
       }
+      delete cache[videoUrl]
     }
-    const files = fs.readdirSync(TMP_DIR).map(f => path.join(TMP_DIR, f))
+
+    const files = fs.readdirSync(TMP_DIR)
     for (const f of files) {
       try {
-        const stats = fs.statSync(f)
-        if (now - stats.mtimeMs > CACHE_TTL_MS) { freed += stats.size; safeUnlink(f); deleted++ }
+        const full = path.join(TMP_DIR, f)
+        if (fs.existsSync(full)) {
+          const stats = fs.statSync(full)
+          freed += stats.size
+          safeUnlink(full)
+          deleted++
+        }
       } catch {}
     }
+
     const mb = (freed / (1024 * 1024)).toFixed(2)
     return conn.sendMessage(msg.chat, { text: `🧹 Limpieza PRO\nEliminados: ${deleted}\nEspacio liberado: ${mb} MB` }, { quoted: msg })
   }
