@@ -10,23 +10,27 @@ const handler = async (m, { conn, participants, isAdmin, isOwner }) => {
     "1": "🇺🇸", "34": "🇪🇸"
   };
 
-  function getFlag(numero) {
-    // Revisa códigos de 3, 2 y 1 dígito para máxima precisión
-    const code3 = numero.slice(0, 3);
-    const code2 = numero.slice(0, 2);
-    const code1 = numero.slice(0, 1);
+  // Función EXACTA estilo .pais
+  function getFlag(num) {
+    const numero = (num || "").replace(/[^0-9]/g, ""); // ← CRUCIAL
+    const prefixes = Object.keys(flagMap).sort((a, b) => b.length - a.length);
 
-    return flagMap[code3] || flagMap[code2] || flagMap[code1] || "🌐";
+    for (const p of prefixes) {
+      if (numero.startsWith(p)) {
+        return flagMap[p];
+      }
+    }
+    return "🌐";
   }
 
   let texto = `*!  MENCION GENERAL  !*\n`;
   texto += `   *PARA ${participants.length} MIEMBROS* 🔔\n\n`;
 
   for (const user of participants) {
-    const numero = user.id.split('@')[0];
+    const numero = (user.id || "");
     const bandera = getFlag(numero);
 
-    texto += `┊» ${bandera} @${numero}\n`;
+    texto += `┊» ${bandera} @${numero.split("@")[0]}\n`;
   }
 
   await conn.sendMessage(m.chat, { react: { text: '🔔', key: m.key } });
