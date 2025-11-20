@@ -20,7 +20,7 @@ let handler = async (m, { conn, args }) => {
   let _uptime = process.uptime() * 1000
   let uptime = clockString(_uptime)
 
-  // 👉 CAMBIADO: ahora agrega ".comando" en vez de "#comando"
+  // 👉 Comandos con .
   let categories = {}
   for (let plugin of Object.values(global.plugins)) {
     if (!plugin.help || !plugin.tags) continue
@@ -29,9 +29,6 @@ let handler = async (m, { conn, args }) => {
       categories[tag].push(...plugin.help.map(cmd => `.${cmd}`))
     }
   }
-
-  let decoEmojis = ['🌙', '👻', '🪄', '🏮', '📜', '💫', '😈', '🍡', '🔮', '🌸', '🪦', '✨']
-  let emojiRandom = () => decoEmojis[Math.floor(Math.random() * decoEmojis.length)]
 
   let menuText = `
 \`\`\`${week}, ${date} 
@@ -42,12 +39,12 @@ ${hourNow} 𝖬𝖾𝗑𝗂𝖼𝗈 𝖢𝗂𝗍𝗒\`\`\`
 𝖳𝗂𝖾𝗆𝗉𝗈 𝖰𝗎𝖾 𝖤𝗁 𝖤𝗌𝗍𝖺𝖽𝗈 𝖠𝖼𝗍𝗂𝗏𝗈: ${uptime} 🏞️
 `.trim()
 
+  // 👉 Se eliminó emojiRandom y deco
   for (let [tag, cmds] of Object.entries(categories)) {
     let tagName = tag.toUpperCase().replace(/_/g, ' ')
-    let deco = emojiRandom()
     menuText += `
 
-╭─── ${deco} ${tagName} ──╮
+╭─── ${tagName} ──╮
 ${cmds.map(cmd => `⭒ ִֶָ७ ꯭🍄˙⋆｡ - ${cmd}`).join('\n')}
 ╰─────────────╯`
   }
@@ -63,7 +60,6 @@ ${cmds.map(cmd => `⭒ ִֶָ७ ꯭🍄˙⋆｡ - ${cmd}`).join('\n')}
         ...(global.rcanal?.contextInfo || {}),
         mentionedJid: [userId]
       }
-      // ❌ Botón eliminado
     },
     { quoted: m }
   )
