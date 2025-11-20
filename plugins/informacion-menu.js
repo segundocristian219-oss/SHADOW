@@ -75,8 +75,6 @@ ${cmds.map(cmd => `⭒ ִֶָ७ ꯭🥤˙⋆｡ - ${cmd}`).join('\n')}
   )
 }
 
-handler.help = ['menu']
-handler.tags = ['𝖬𝖾𝗇𝗎𝗌']
 handler.command = ['menu', 'menú', 'help', 'ayuda']
 handler.rcanal = true
 
