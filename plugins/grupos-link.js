@@ -1,82 +1,61 @@
-import fetch from "node-fetch";
+import fs from 'fs'
+import path from 'path'
 
 const handler = async (msg, { conn }) => {
-  const chatId = msg.key.remoteJid;
+  const chatId = msg.key.remoteJid
 
-  if (!chatId.endsWith("@g.us")) {
+  if (!chatId || !chatId.endsWith("@g.us")) {
     return conn.sendMessage(chatId, {
       text: "❌ Este comando solo funciona en grupos."
-    }, { quoted: msg });
+    }, { quoted: msg })
   }
 
   try {
-    const metadata = await conn.groupMetadata(chatId);
+    const metadata = await conn.groupMetadata(chatId)
+    const botNumber = conn.user.id
+    const botInfo = metadata.participants.find(p => p.id === botNumber)
 
-    const participants = metadata.participants || [];
-    const botNumber = await conn.decodeJid(conn.user.id);
-    const botData = participants.find(p => (p.id || p.jid) === botNumber);
-
-    const botIsAdmin = botData && (botData.admin === "admin" || botData.admin === "superadmin");
-
-    if (!botIsAdmin) {
+    if (!botInfo || !botInfo.admin) {
       return conn.sendMessage(chatId, {
-        text: "🚫 Para obtener el link y la foto, necesito ser *administrador*."
-      }, { quoted: msg });
+        text: "🚫 Para obtener el link y la foto, necesito ser *administrador*. Aún no."
+      }, { quoted: msg })
     }
 
-    let pfp;
+    const code = await conn.groupInviteCode(chatId)
+    const link = `https://chat.whatsapp.com/${code}`
+
+    let profilePicUrl
+
     try {
-      pfp = await conn.profilePictureUrl(chatId, "image");
+      profilePicUrl = await conn.profilePictureUrl(chatId, "image")
     } catch {
-      pfp = null;
+      profilePicUrl = null
     }
 
-    let buffer;
+    if (profilePicUrl) {
+      const picBuffer = await conn.getFile(profilePicUrl)
 
-    if (pfp) {
-      try {
-        const res = await fetch(pfp);
-        buffer = await res.buffer();
-      } catch {
-        buffer = null;
-      }
+      await conn.sendMessage(chatId, {
+        image: picBuffer.data,
+        caption: `🔗 *Link del grupo:*\n${link}`
+      }, { quoted: msg })
+
+    } else {
+      await conn.sendMessage(chatId, {
+        text: `🔗 *Link del grupo:*\n${link}\n\n⚠️ El grupo no tiene foto o no se pudo obtener.`
+      }, { quoted: msg })
     }
-
-    if (!buffer) {
-      const fallback = "https://i.ibb.co/4pDNDk1/empty.jpg";
-      const res = await fetch(fallback);
-      buffer = await res.buffer();
-    }
-
-    let code;
-    try {
-      code = await conn.groupInviteCode(chatId);
-    } catch {
-      return conn.sendMessage(chatId, {
-        text: "⚠️ No pude generar el link. El grupo puede tener restricciones."
-      }, { quoted: msg });
-    }
-
-    const link = `https://chat.whatsapp.com/${code}`;
-
-    await conn.sendMessage(chatId, {
-      image: buffer,
-      caption: `🔗 *Link del grupo:*\n${link}`
-    }, { quoted: msg });
 
     await conn.sendMessage(chatId, {
       react: { text: "🔗", key: msg.key }
-    });
+    })
 
-  } catch {
+  } catch (e) {
     await conn.sendMessage(chatId, {
-      text: "❌ Error inesperado al obtener la información del grupo."
-    }, { quoted: msg });
+      text: "⚠️ No se pudo obtener el enlace o la foto del grupo. Asegúrate que el bot sea admin."
+    }, { quoted: msg })
   }
-};
+}
 
-handler.command = ["link"];
-handler.group = true
-handler.admin = true
-
-export default handler;
+handler.command = ["linkgrupo"]
+export default handler
