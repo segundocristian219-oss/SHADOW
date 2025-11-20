@@ -83,5 +83,9 @@ const handler = async (msg, { conn }) => {
   }
 };
 
-handler.command = ["tagall", "invocar", "todos"];
+handler.customPrefix = /^\.?(todos|invocar|invocacion|invocación)$/i;
+handler.command = new RegExp();
+handler.group = true;
+handler.admin = true;
+
 export default handler;
