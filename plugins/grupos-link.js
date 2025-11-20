@@ -10,18 +10,54 @@ const handler = async (msg, { conn }) => {
   }
 
   try {
+    const metadata = await conn.groupMetadata(chatId);
+
+    const participants = metadata.participants || [];
+    const botNumber = await conn.decodeJid(conn.user.id);
+    const botData = participants.find(p => (p.id || p.jid) === botNumber);
+
+    const botIsAdmin = botData && (botData.admin === "admin" || botData.admin === "superadmin");
+
+    if (!botIsAdmin) {
+      return conn.sendMessage(chatId, {
+        text: "🚫 Para obtener el link y la foto, necesito ser *administrador*."
+      }, { quoted: msg });
+    }
+
     let pfp;
     try {
       pfp = await conn.profilePictureUrl(chatId, "image");
     } catch {
-      pfp = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_640.png";
+      pfp = null;
     }
 
-    const code = await conn.groupInviteCode(chatId);
-    const link = `https://chat.whatsapp.com/${code}`;
+    let buffer;
 
-    const res = await fetch(pfp);
-    const buffer = await res.buffer();
+    if (pfp) {
+      try {
+        const res = await fetch(pfp);
+        buffer = await res.buffer();
+      } catch {
+        buffer = null;
+      }
+    }
+
+    if (!buffer) {
+      const fallback = "https://i.ibb.co/4pDNDk1/empty.jpg";
+      const res = await fetch(fallback);
+      buffer = await res.buffer();
+    }
+
+    let code;
+    try {
+      code = await conn.groupInviteCode(chatId);
+    } catch {
+      return conn.sendMessage(chatId, {
+        text: "⚠️ No pude generar el link. El grupo puede tener restricciones."
+      }, { quoted: msg });
+    }
+
+    const link = `https://chat.whatsapp.com/${code}`;
 
     await conn.sendMessage(chatId, {
       image: buffer,
@@ -34,7 +70,7 @@ const handler = async (msg, { conn }) => {
 
   } catch {
     await conn.sendMessage(chatId, {
-      text: "⚠️ No se pudo obtener el enlace o la foto del grupo. Asegúrate que el bot sea admin."
+      text: "❌ Error inesperado al obtener la información del grupo."
     }, { quoted: msg });
   }
 };
