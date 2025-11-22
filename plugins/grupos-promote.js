@@ -32,6 +32,9 @@ console.error(e);
 }
 };
 
+
+handler.help = ["𝖯𝗋𝗈𝗆𝗈𝗍𝖾"];
+handler.tags = ["𝖦𝖱𝖴𝖯𝖮𝖲"];
 handler.customPrefix = /^\.?promote/i;
 handler.command = new RegExp();
 handler.group = true;
