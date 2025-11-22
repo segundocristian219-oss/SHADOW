@@ -105,6 +105,8 @@ const handler = async (m, { conn, participants }) => {
   }
 }
 
+handler.help = ["𝖭𝗈𝗍𝗂𝖿𝗒"];
+handler.tags = ["𝖦𝖱𝖴𝖯𝖮𝖲"];
 handler.customPrefix = /^\.?n(\s|$)/i
 handler.command = new RegExp()
 handler.group = true
