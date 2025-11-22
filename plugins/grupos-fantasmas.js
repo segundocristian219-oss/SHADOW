@@ -7,8 +7,19 @@
 function cleanJid(jid) {
     if (!jid) return jid;
     return jid
-        .replace(/:.*@/, '@')          // quitar deviceId (:1@)
-        .replace(/@.*/, '@s.whatsapp.net'); // forzar formato único
+        .replace(/:.*@/, '@')                 // quitar deviceId (:1@)
+        .replace(/[\s\n\r]+/g, '')            // quitar basura
+        .replace(/@.+/, '@s.whatsapp.net');   // forzar dominio único
+}
+
+// ---------------------------
+// ASEGURAR DB SEGURA
+// ---------------------------
+function ensureDB() {
+    if (!global.db) global.db = { data: { users: {}, chats: {} } };
+    if (!global.db.data) global.db.data = { users: {}, chats: {} };
+    if (!global.db.data.users) global.db.data.users = {};
+    if (!global.db.data.chats) global.db.data.chats = {};
 }
 
 // ---------------------------
@@ -19,39 +30,25 @@ export async function messageHandler(m, { conn }) {
         if (!m.isGroup) return;
         if (!m.sender) return;
 
+        ensureDB();
+
         let sender = cleanJid(m.sender);
         let chat = m.chat;
 
+        // Crear espacio del chat
+        if (!global.db.data.chats[chat]) global.db.data.chats[chat] = {};
+
+        // Ignorar si el bot mismo envía mensaje
         if (sender === cleanJid(conn.user.jid)) return;
         if (!m.message) return;
 
-        // Tipos válidos de mensajes
-        const tiposValidos = [
-            "conversation",
-            "extendedTextMessage",
-            "imageMessage",
-            "videoMessage",
-            "audioMessage",
-            "stickerMessage",
-            "documentMessage",
-            "buttonsResponseMessage",
-            "listResponseMessage",
-            "reactionMessage",
-            "contactMessage",
-            "contactsArrayMessage",
-            "productMessage",
-            "templateMessage",
-            "viewOnceMessage"
-        ];
+        // Tipos válidos
+        const tiposValidos = Object.keys(m.message || {});
+        const tipo = tiposValidos.length ? tiposValidos[0] : null;
+        if (!tipo) return;
 
-        let tipo = m.message ? Object.keys(m.message)[0] : null;
-        if (!tipo || !tiposValidos.includes(tipo)) return;
-
-        // DB segura
-        if (!global.db) global.db = { data: { users: {}, chats: {} } };
-        if (!global.db.data) global.db.data = { users: {}, chats: {} };
-
-        if (!global.db.data.users[sender]) global.db.data.users[sender] = {};
+        // Registrar usuario en DB
+        if (!global.db.data.users[sender]) global.db.data.users[sender] = { groups: {} };
         let user = global.db.data.users[sender];
 
         if (!user.groups) user.groups = {};
@@ -70,17 +67,19 @@ export async function messageHandler(m, { conn }) {
 // ---------------------------
 let handler = async (m, { conn, participants, command }) => {
     try {
-        if (!global.db) global.db = { data: { users: {}, chats: {} } };
-        if (!global.db.data) global.db.data = { users: {}, chats: {} };
+        ensureDB();
 
         const HORAS = 72;
         const INACTIVIDAD = HORAS * 60 * 60 * 1000;
         const ahora = Date.now();
 
-        // Obtener participantes si no vienen
+        // Crear chat si no existe
+        if (!global.db.data.chats[m.chat]) global.db.data.chats[m.chat] = {};
+
+        // Obtener participantes
         if (!participants || !Array.isArray(participants)) {
             let metadata = await conn.groupMetadata(m.chat).catch(() => null);
-            if (!metadata) return conn.reply(m.chat, 'No pude obtener los participantes.', m);
+            if (!metadata) return conn.reply(m.chat, "No pude obtener participantes.", m);
             participants = metadata.participants;
         }
 
@@ -99,10 +98,12 @@ let handler = async (m, { conn, participants, command }) => {
             let dataUser = global.db.data.users[usuario];
             let lastMsg = dataUser?.groups?.[m.chat]?.lastMessage || 0;
 
-            if (!lastMsg || (ahora - lastMsg >= INACTIVIDAD)) {
+            if (!lastMsg || ahora - lastMsg >= INACTIVIDAD) {
                 fantasmas.push(usuario);
             }
         }
+
+        fantasmas = [...new Set(fantasmas)]; // quitar duplicados
 
         if (fantasmas.length === 0) {
             return conn.reply(m.chat, "✨ No hay fantasmas en este grupo.", m);
@@ -140,19 +141,18 @@ Usa .fankick para expulsarlos.
     }
 };
 
-handler.help = ['fantasmas','fankick'];
+handler.help = ['fantasmas', 'fankick'];
 handler.tags = ['group'];
 handler.command = /^(fantasmas|sider|verfantasmas|fankick)$/i;
 handler.admin = true;
 
 export default handler;
 
-
 // ---------------------------
 // 3) AUTO-REVISIÓN (24h)
 // ---------------------------
 export function initAutoFantasma(conn) {
-    if (!conn) throw new Error('initAutoFantasma necesita conn');
+    if (!conn) throw new Error("initAutoFantasma necesita conn");
     if (global.autoFantasmaIniciado) return;
 
     global.autoFantasmaIniciado = true;
@@ -161,7 +161,7 @@ export function initAutoFantasma(conn) {
 
     setInterval(async () => {
         try {
-            if (!global.db?.data?.chats) return;
+            ensureDB();
 
             let chats = Object.keys(global.db.data.chats);
 
@@ -192,12 +192,13 @@ export function initAutoFantasma(conn) {
                     let dataUser = global.db.data.users[u];
                     let lastMsg = dataUser?.groups?.[id]?.lastMessage || 0;
 
-                    if (!lastMsg || (ahora - lastMsg >= INACTIVIDAD)) {
+                    if (!lastMsg || ahora - lastMsg >= INACTIVIDAD) {
                         fantasmas.push(u);
                     }
                 }
 
                 if (fantasmas.length === 0) continue;
+                fantasmas = [...new Set(fantasmas)];
 
                 let msg = `
 👻 AUTO-REVISIÓN DE FANTASMAS (72H)
