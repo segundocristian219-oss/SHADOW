@@ -223,5 +223,8 @@ const handler = async(msg,{conn,text,command})=>{
   }
 }
 
+
+handler.help = ["𝖯𝗅𝖺𝗒"];
+handler.tags = ["𝖣𝖤𝖲𝖢𝖠𝖱𝖦𝖠𝖲"];
 handler.command=["play","clean"]
 export default handler
