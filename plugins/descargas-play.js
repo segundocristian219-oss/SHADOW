@@ -11,6 +11,7 @@ const streamPipe = promisify(pipeline)
 const TMP_DIR = path.join(process.cwd(), "tmp")
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true })
 
+const CACHE_FILE = path.join(TMP_DIR, "cache.json")
 const SKY_BASE = process.env.API_BASE || "https://api-sky.ultraplus.click"
 const SKY_KEY = process.env.API_KEY || "Russellxz"
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT) || 3
@@ -19,28 +20,34 @@ const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT) || 60000
 const MAX_RETRIES = 3
 const PROGRESS_STEP = 0.05
 
-const pending = {}
-const cache = {}
 let activeDownloads = 0
 const downloadQueue = []
 const downloadTasks = {}
+let cache = loadCache()
 
+function saveCache() {
+  try { fs.writeFileSync(CACHE_FILE, JSON.stringify(cache)) } catch {}
+}
+function loadCache() {
+  try { return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8")) || {} } catch { return {} }
+}
 function safeUnlink(file) { try { file && fs.existsSync(file) && fs.unlinkSync(file) } catch {} }
 function fileSizeMB(filePath) { try { return fs.statSync(filePath).size / (1024*1024) } catch { return 0 } }
 function readHeader(file, length=16){ try { const fd = fs.openSync(file,"r"); const buf=Buffer.alloc(length); fs.readSync(fd,buf,0,length,0); fs.closeSync(fd); return buf } catch { return null } }
+function wait(ms){ return new Promise(res=>setTimeout(res, ms)) }
+
 function validCache(file, expectedSize=null){
   if(!file || !fs.existsSync(file)) return false
   const size = fs.statSync(file).size
   if(size < 50*1024) return false
   if(expectedSize && size < expectedSize*0.92) return false
-  const hex = readHeader(file,16)?.toString("hex")
-  if(!hex) return false
-  if(file.endsWith(".mp3") && !hex.startsWith("494433") && !hex.startsWith("fff")) return false
+  const buf = readHeader(file, 16)
+  if(!buf) return false
+  const hex = buf.toString("hex")
+  if(file.endsWith(".mp3") && !(hex.startsWith("494433") || hex.startsWith("fff"))) return false
   if((file.endsWith(".mp4")||file.endsWith(".m4a")) && !hex.includes("66747970")) return false
   return true
 }
-
-async function wait(ms){ return new Promise(res=>setTimeout(res, ms)) }
 
 async function queueDownload(task){
   if(activeDownloads>=MAX_CONCURRENT) await new Promise(res=>downloadQueue.push(res))
@@ -54,14 +61,14 @@ async function getSkyApiUrl(videoUrl, format, timeout=20000, retries=2){
       const {data} = await axios.get(`${SKY_BASE}/api/download/yt.php`,{params:{url:videoUrl,format},headers:{Authorization:`Bearer ${SKY_KEY}`},timeout})
       const url = data?.data?.audio || data?.data?.video || data?.audio || data?.video || data?.url || data?.download
       if(url?.startsWith("http")) return url
-    } catch{}
+    } catch(e){ console.error("Sky API try", i, e?.message || e) }
     if(i<retries) await wait(500*(i+1))
   }
   return null
 }
 
 async function probeRemote(url, timeout=10000){
-  try{ const res = await axios.head(url,{timeout,maxRedirects:5}); return {ok:true,size:Number(res.headers["content-length"]||0),headers:res.headers} } catch { return {ok:false} }
+  try{ const res = await axios.head(url,{timeout,maxRedirects:5}); return {ok:true,size:Number(res.headers["content-length"]||0),headers:res.headers} } catch (e) { return {ok:false} }
 }
 
 async function downloadWithProgress(url, filePath, signal, start=0, onProgress=null){
@@ -75,7 +82,7 @@ async function downloadWithProgress(url, filePath, signal, start=0, onProgress=n
     const percent = Math.floor(downloaded/totalSize/PROGRESS_STEP)*PROGRESS_STEP
     if(onProgress && percent>lastPercent){
       lastPercent = percent
-      onProgress(Math.min(percent,1))
+      try { onProgress(Math.min(percent,1)) } catch {}
     }
   })
   await streamPipe(res.data, fs.createWriteStream(filePath, {flags:start?"a":"w"}))
@@ -109,6 +116,7 @@ async function startDownload(videoUrl,key,mediaUrl,forceRestart=false,retryCount
       const expectedSize = probe.ok && probe.size
       await queueDownload(()=>downloadWithProgress(mediaUrl,file,controller.signal,start,onProgress))
       if(key.startsWith("audio") && path.extname(file)!==".mp3") info.file = await convertToMp3(file)
+      else info.file = file
       if(!validCache(info.file,expectedSize)){
         safeUnlink(info.file)
         if(retryCount<MAX_RETRIES) return await startDownload(videoUrl,key,mediaUrl,true,retryCount+1,onProgress)
@@ -132,7 +140,20 @@ async function startDownload(videoUrl,key,mediaUrl,forceRestart=false,retryCount
 async function sendFileToChat(conn,chatId,filePath,title,asDocument,type,quoted){
   if(!validCache(filePath)) return await conn.sendMessage(chatId,{text:"❌ Archivo inválido."},{quoted})
   const buffer = fs.readFileSync(filePath)
-  await conn.sendMessage(chatId,{[asDocument?"document":type]:buffer,mimetype:type==="audio"?"audio/mpeg":"video/mp4",fileName:`${title}.${type==="audio"?"mp3":"mp4"}`},{quoted})
+  const msg = {}
+  if(asDocument) msg.document = buffer
+  else if(type==="audio") msg.audio = buffer
+  else msg.video = buffer
+  const mimetype = type==="audio"?"audio/mpeg":"video/mp4"
+  const fileName = `${title}.${type==="audio"?"mp3":"mp4"}`
+  await conn.sendMessage(chatId,{...msg,mimetype,fileName},{quoted})
+}
+
+function sendStatus(conn,chatId,txt,quoted){
+  return conn.sendMessage(chatId,{text:txt},{quoted})
+}
+function sendError(conn,chatId,txt,quoted){
+  return conn.sendMessage(chatId,{text:`❌ ${txt}`},{quoted})
 }
 
 async function handleDownload(conn,job,choice){
@@ -146,26 +167,30 @@ async function handleDownload(conn,job,choice){
   if(cached && validCache(cached)) return sendFileToChat(conn,job.chatId,cached,job.title,isDoc,type,job.commandMsg)
 
   const mediaUrl = await getSkyApiUrl(id,type)
-  if(!mediaUrl) return await conn.sendMessage(job.chatId,{text:`❌ No se obtuvo enlace de ${type}`},{quoted:job.commandMsg})
+  if(!mediaUrl) return sendError(conn,job.chatId,`No se obtuvo enlace de ${type}`, job.commandMsg)
 
   const probe = await probeRemote(mediaUrl)
-  if(!probe.ok || (probe.size && probe.size/(1024*1024)>MAX_FILE_MB)) return await conn.sendMessage(job.chatId,{text:`❌ Archivo muy grande o inaccesible`},{quoted:job.commandMsg})
+  if(!probe.ok || (probe.size && probe.size/(1024*1024)>MAX_FILE_MB)) return sendError(conn,job.chatId,`Archivo muy grande o inaccesible`, job.commandMsg)
+
+  const msgTypeText = type === "audio" ? (isDoc ? "Audio en documento" : "Audio") : (isDoc ? "Vídeo en documento" : "Vídeo")
+  await sendStatus(conn, job.chatId, `⏳ Descargando ${msgTypeText}...`, job.commandMsg)
 
   try{
-    await conn.sendMessage(job.chatId,{text:`⏳ Descargando ${type}...`},{quoted:job.commandMsg})
     const f = await startDownload(id,key,mediaUrl,true,0,(percent)=>{
       const pct = Math.floor(percent*100)
       if(job.lastPct !== pct && pct%10===0){
         job.lastPct = pct
-        console.log(`📥 Descargando ${type}: ${pct}%`)
+        try{ conn.sendMessage(job.chatId,{text:`⬇️ ${msgTypeText}: ${pct}%`},{quoted:job.commandMsg}) } catch {}
       }
     })
     cache[id]=cache[id]||{timestamp:Date.now(),files:{}}
     cache[id].files[key]=f
     cache[id].timestamp=Date.now()
+    saveCache()
     await sendFileToChat(conn,job.chatId,f,job.title,isDoc,type,job.commandMsg)
   } catch(err){
-    await conn.sendMessage(job.chatId,{text:`❌ Error: ${err?.message||err}`},{quoted:job.commandMsg})
+    console.error("Download error:", err?.message || err)
+    await sendError(conn, job.chatId, `${err?.message || "Error al descargar"}`, job.commandMsg)
   }
 }
 
@@ -173,20 +198,22 @@ const handler = async(msg,{conn,text,command})=>{
   const pref = global.prefixes?.[0]||"."
   if(command==="clean"){
     let deleted=0,freed=0
-    Object.values(cache).forEach(data=>Object.values(data.files).forEach(f=>{ if(fs.existsSync(f)){freed+=fs.statSync(f).size; safeUnlink(f); deleted++}}))
+    Object.values(cache).forEach(data=>Object.values(data.files||{}).forEach(f=>{ if(f && fs.existsSync(f)){freed+=fs.statSync(f).size; safeUnlink(f); deleted++}}))
     fs.readdirSync(TMP_DIR).forEach(f=>{ const full=path.join(TMP_DIR,f); if(fs.existsSync(full)){freed+=fs.statSync(full).size; safeUnlink(full); deleted++} })
+    cache = {}
+    saveCache()
     return await conn.sendMessage(msg.chat,{text:`🧹 Limpieza PRO\nEliminados: ${deleted}\nEspacio liberado: ${(freed/1024/1024).toFixed(2)} MB`},{quoted:msg})
   }
   if(!text?.trim()) return await conn.sendMessage(msg.key.remoteJid,{text:`✳️ Usa:\n${pref}play <término>\nEj: ${pref}play bad bunny diles`},{quoted:msg})
 
   try{ await conn.sendMessage(msg.key.remoteJid,{react:{text:"🕒",key:msg.key}}) } catch{}
   let res
-  try{ res = await yts(text) } catch{return await conn.sendMessage(msg.key.remoteJid,{text:"❌ Error al buscar video."},{quoted:msg})}
+  try{ res = await yts(text) } catch{return await sendError(conn,msg.key.remoteJid,"Error al buscar video.",msg)}
   const video = res.videos?.[0]
-  if(!video) return await conn.sendMessage(msg.key.remoteJid,{text:"❌ Sin resultados."},{quoted:msg})
+  if(!video) return await sendError(conn,msg.key.remoteJid,"Sin resultados.",msg)
 
   const { url:videoUrl, title, timestamp:duration, views, author, thumbnail } = video
-  const caption = `𝚂𝚄𝙿𝙴𝚁 𝙿𝙻𝙰𝚈
+  const caption = `𝚂𝚄𝙿𝙴𝚁 𝙿𝙻𝙰𝗬
 🎵 Título: ${title}
 🕑 Duración: ${duration}
 👁️‍🗨️ Vistas: ${(views||0).toLocaleString()}
@@ -200,31 +227,34 @@ const handler = async(msg,{conn,text,command})=>{
 ☛ 📁 Video Doc`.trim()
 
   const preview = await conn.sendMessage(msg.key.remoteJid,{image:{url:thumbnail},caption},{quoted:msg})
-  pending[preview.key.id]={chatId:msg.key.remoteJid,videoUrl,title,commandMsg:msg,sender:msg.key.participant||msg.participant,downloading:false,lastPct:0}
-  setTimeout(()=>delete pending[preview.key.id],10*60*1000)
+  pendingManagerAdd(preview.key.id, {chatId: msg.key.remoteJid, videoUrl, title, commandMsg: msg, sender: msg.key.participant || msg.participant, downloading:false, lastPct:0})
   try{ await conn.sendMessage(msg.key.remoteJid,{react:{text:"✅",key:msg.key}}) } catch{}
 
-  if(!conn._listeners) conn._listeners={}
-  if(!conn._listeners.play){
-    conn._listeners.play=true
-    conn.ev.on("messages.upsert",async ev=>{
-      for(const m of ev.messages||[]){
-        const react=m.message?.reactionMessage
-        if(!react) continue
-        const { key:reactKey, text:emoji, sender }=react
-        const job=pending[reactKey?.id]
-        if(!job || !["👍","❤️","📄","📁"].includes(emoji)) continue
-        if((sender||m.key.participant)!==job.sender){ await conn.sendMessage(job.chatId,{text:"❌ No autorizado."},{quoted:job.commandMsg}); continue }
-        if(job.downloading) continue
-        job.downloading=true
-        try{ await handleDownload(conn,job,emoji) } finally{ job.downloading=false }
+  if(conn._playListener) conn.ev.off("messages.upsert", conn._playListener)
+  conn._playListener = async ev => {
+    for(const m of ev.messages||[]){
+      const react = m.message?.reactionMessage
+      if(!react) continue
+      const { key:reactKey, text:emoji, sender } = react
+      const job = pendingManagerGet(reactKey?.id)
+      if(!job || !["👍","❤️","📄","📁"].includes(emoji)) continue
+      if((sender||m.key.participant) !== job.sender){
+        try{ await conn.sendMessage(job.chatId,{text:"❌ No autorizado."},{quoted:job.commandMsg}) } catch {}
+        continue
       }
-    })
+      if(job.downloading) continue
+      job.downloading = true
+      try{ await handleDownload(conn, job, emoji) } finally { job.downloading = false }
+    }
   }
+  conn.ev.on("messages.upsert", conn._playListener)
 }
 
+const pending = {}
+function pendingManagerAdd(id, data){ pending[id]=data; setTimeout(()=>delete pending[id],10*60*1000) }
+function pendingManagerGet(id){ return pending[id] }
 
-handler.help = ["𝖯𝗅𝖺𝗒"];
-handler.tags = ["𝖣𝖤𝖲𝖢𝖠𝖱𝖦𝖠𝖲"];
+handler.help = ["play"];
+handler.tags = ["descargas"];
 handler.command=["play","clean"]
 export default handler
