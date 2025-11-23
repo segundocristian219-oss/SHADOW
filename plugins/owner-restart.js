@@ -11,8 +11,6 @@ let handler = async (m, { conn, usedPrefix, command }) => {
     }
 }
 
-handler.help = ['restart']
-handler.tags = ['owner']
 handler.command = ['rei', 'restart'] 
 handler.rowner = false
 
