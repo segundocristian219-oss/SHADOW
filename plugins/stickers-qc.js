@@ -7,59 +7,35 @@ import { fileTypeFromBuffer } from 'file-type'
 import webp from 'node-webpmux'
 import axios from 'axios'
 
-// ------------------------------
-//   TEMP DIR
-// ------------------------------
 const tmp = path.join(process.cwd(), 'tmp')
 if (!fs.existsSync(tmp)) fs.mkdirSync(tmp)
 
-// ------------------------------
-//   FUNCIONES MEJORADAS
-// ------------------------------
-
-// Obtener nombre con máxima efectividad
 async function getUserName(m, conn, jid) {
-  // 1. Intento oficial
   try {
     let name = await conn.getName(jid)
     if (name) return name
   } catch {}
-
-  // 2. Intentar obtener de vCard (cuando se cita un contacto)
   if (m.quoted?.vcard) {
     try {
       const match = /FN:(.*)/.exec(m.quoted.vcard)
       if (match) return match[1].trim()
     } catch {}
   }
-
-  // 3. pushName del usuario que envió el mensaje
   if (m.pushName) return m.pushName
-
-  // 4. Solo número
   return jid.split("@")[0]
 }
 
-// Obtener foto de perfil con fallback sólido
 async function getUserPP(conn, jid) {
   const fallback = 'https://telegra.ph/file/320b066dc81928b782c7b.png'
-
-  // HD
   try {
     return await conn.profilePictureUrl(jid, 'image')
   } catch {}
-
-  // Normal
   try {
     return await conn.profilePictureUrl(jid)
   } catch {}
-
   return fallback
 }
 
-// ------------------------------
-//  GENERACIÓN DE STICKER WEBP
-// ------------------------------
 async function addExif(webpSticker, packname = '', author = '', categories = [''], extra = {}) {
   const img = new webp.Image()
   const stickerPackId = crypto.randomBytes(32).toString('hex')
@@ -100,7 +76,6 @@ async function sticker(img, url, packname = '', author = '') {
     const ff = /video/i.test(type.mime)
       ? fluent_ffmpeg(tmpFile).inputFormat(type.ext)
       : fluent_ffmpeg(tmpFile).input(tmpFile)
-
     ff.addOutputOptions([
       `-vcodec`, `libwebp`, `-vf`,
       `scale='min(512,iw)':min'(512,ih)':force_original_aspect_ratio=decrease,fps=15, pad=512:512:-1:-1:color=white@0.0, split [a][b]; [a] palettegen=reserve_transparent=on:transparency_color=ffffff [p]; [b][p] paletteuse`
@@ -118,30 +93,40 @@ async function sticker(img, url, packname = '', author = '') {
   return await addExif(buffer, packname, author)
 }
 
-// ------------------------------
-//        HANDLER ⭐
-// ------------------------------
 const handler = async (m, { conn, args }) => {
-  // Texto
   let texto
   if (args.length >= 1) texto = args.join(" ")
   else if (m.quoted?.text) texto = m.quoted.text
-  else return m.reply("💬 Por favor escribe o responde a un texto para generar la cita")
+
+  if (!texto) {
+    return conn.sendMessage(
+      m.chat,
+      {
+        text: "𝖠𝗀𝗋𝖾𝗀𝖺 𝖳𝖾𝗑𝗍𝗈 𝖮 𝖱𝖾𝗌𝗉𝗈𝗇𝖽𝖾 𝖠 𝖴𝗇 𝖬𝖾𝗇𝗌𝖺𝗃𝖾 𝖯𝖺𝗋𝖺 𝖢𝗋𝖾𝖺𝗋 𝖫𝖺 𝖢𝗂𝗍𝖺",
+        ...global.rcanal
+      },
+      { quoted: m }
+    )
+  }
 
   if (texto.length > 100)
-    return m.reply("⚠️ El texto no puede superar los 100 caracteres")
+    return conn.sendMessage(
+      m.chat,
+      {
+        text: "⚠️ El texto no puede superar los 100 caracteres",
+        ...global.rcanal
+      },
+      { quoted: m }
+    )
 
-  // Detectar usuario objetivo
   let quien = m.mentionedJid?.[0] || m.quoted?.sender || m.sender
 
-  // limpiar menciones
   if (m.mentionedJid) {
     for (let jid of m.mentionedJid) {
       texto = texto.replace(`@${jid.split('@')[0]}`, '').trim()
     }
   }
 
-  // Obtener nombre y foto con las funciones mejoradas
   let nombre = await getUserName(m, conn, quien)
   let fotoPerfil = await getUserPP(conn, quien)
 
@@ -149,13 +134,13 @@ const handler = async (m, { conn, args }) => {
 
   try {
     const datos = {
-      "type": "quote",
-      "format": "png",
-      "backgroundColor": "#000000",
-      "width": 512,
-      "height": 768,
-      "scale": 2,
-      "messages": [{
+      type: "quote",
+      format: "png",
+      backgroundColor: "#000000",
+      width: 512,
+      height: 768,
+      scale: 2,
+      messages: [{
         entities: [],
         avatar: true,
         from: {
@@ -175,15 +160,25 @@ const handler = async (m, { conn, args }) => {
     const imgBuffer = Buffer.from(res.data.result.image, 'base64')
     const stiker = await sticker(imgBuffer, false, '', '')
 
-    await conn.sendMessage(m.chat, { sticker: stiker }, { quoted: m })
+    await conn.sendMessage(
+      m.chat,
+      {
+        sticker: stiker,
+        ...global.rcanal
+      },
+      { quoted: m }
+    )
+
     await m.react('✅')
 
   } catch (e) {
-    console.error(e)
     await m.react('❌')
-    await conn.sendMessage(
+    return conn.sendMessage(
       m.chat,
-      { text: '╭─❀ *Error al generar la cita* ❀─╮\n✘ Intenta nuevamente\n╰───────────────────────────╯' },
+      {
+        text: "𝖮𝖼𝗎𝗋𝗋𝗂𝗈 𝖴𝗇 𝖤𝗋𝗋𝗈𝗋 𝖠𝗅 𝖦𝖾𝗇𝖾𝗋𝖺𝗋 𝖫𝖺 𝖢𝗂𝗍𝖺",
+        ...global.rcanal
+      },
       { quoted: m }
     )
   }
