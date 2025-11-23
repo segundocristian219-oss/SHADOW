@@ -5,16 +5,21 @@ let handler = async (m, { conn, usedPrefix, command }) => {
   const quoted = m.quoted ? m.quoted : m
   const mime = quoted.mimetype || quoted.msg?.mimetype || ''
 
-
   if (!/image\/(jpe?g|png)/i.test(mime)) {
     await conn.sendMessage(m.chat, { react: { text: '🔥', key: m.key } })
-    return m.reply(`${emoji} Envía o *responde a una imagen* con el comando:\n*${usedPrefix + command}*`)
+    return conn.sendMessage(
+      m.chat,
+      {
+        text: `Envía o *responde a una imagen* con el comando:\n*${usedPrefix + command}*`,
+        ...global.rcanal
+      },
+      { quoted: m }
+    )
   }
 
   try {
     await conn.sendMessage(m.chat, { react: { text: '⚡', key: m.key } })
-
-  conn.reply(m.chat, `${emoji} Mejorando la calidad de la imagen....`, m,)  
+    conn.reply(m.chat, `Mejorando la calidad de la imagen....`, m)
     const media = await quoted.download()
     const ext = mime.split('/')[1]
     const filename = `mejorada_${Date.now()}.${ext}`
@@ -44,22 +49,31 @@ let handler = async (m, { conn, usedPrefix, command }) => {
 
     const resultBuffer = await (await fetch(json.result_url)).buffer()
 
-    await conn.sendMessage(m.chat, {
-      image: resultBuffer,
-      caption: `
-${emoji} Tu imagen ha sido mejorada al doble de resolución.
-`.trim()
-    }, { quoted: m })
+    await conn.sendMessage(
+      m.chat,
+      {
+        image: resultBuffer,
+        caption: `Tu imagen ha sido mejorada al doble de resolución.`
+      },
+      { quoted: m }
+    )
 
     await conn.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
   } catch (err) {
     await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } })
-    m.reply(`❌ Falló la mejora de imagen:\n${err.message || err}`)
+    await conn.sendMessage(
+      m.chat,
+      {
+        text: `❌ Falló la mejora de imagen:\n${err.message || err}`,
+        ...global.rcanal
+      },
+      { quoted: m }
+    )
   }
 }
 
 handler.help = ['hd']
 handler.tags = ['ia']
-handler.command = ['hd'];
+handler.command = ['hd']
 
 export default handler
