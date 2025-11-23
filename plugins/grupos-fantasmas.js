@@ -148,8 +148,6 @@ Usa .fankick para expulsarlos.
     }
 };
 
-handler.help = ['fantasmas', 'fankick'];
-handler.tags = ['group'];
 handler.command = /^(fantasmas|sider|verfantasmas|fankick)$/i;
 handler.admin = true;
 
