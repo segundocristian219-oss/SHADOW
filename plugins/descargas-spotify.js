@@ -9,12 +9,11 @@ const handler = async (m, { conn, text }) => {
     const apikey = 'Destroy-xyz';
     const baseUrl = 'https://api-adonix.ultraplus.click';
     const res = await axios.get(`${baseUrl}/download/spotify?apikey=${apikey}&q=${encodeURIComponent(text)}`);
-    
+
     const data = res.data;
 
-    if (!data || !data.result || data.result.length === 0) {
-      return m.reply(`❌ No se encontraron resultados para "${text}" en Spotify.`);
-    }
+    if (!data) return m.reply('❌ La API no respondió correctamente.');
+    if (!data.result || data.result.length === 0) return m.reply(`❌ No se encontraron resultados para "${text}" en Spotify.`);
 
     const song = data.result[0];
 
@@ -27,15 +26,19 @@ const handler = async (m, { conn, text }) => {
     }
 
     if (!song.url) {
-      return m.reply('❌ No se pudo descargar la canción. Puede estar restringida.');
+      return m.reply('❌ La canción seleccionada no tiene audio disponible.');
     }
 
     await conn.sendMessage(m.chat, { audio: { url: song.url }, fileName: 'audio.mp3', mimetype: 'audio/mpeg', quoted: m });
     await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key }});
 
   } catch (e) {
-    console.log(e);
-    await conn.reply(m.chat, '> Ocurrió un error, intenta nuevamente.', m);
+    console.log(e.response?.data || e.message || e);
+    if (e.response?.data) {
+      await conn.reply(m.chat, `❌ Error en la API: ${JSON.stringify(e.response.data)}`, m);
+    } else {
+      await conn.reply(m.chat, '❌ Ocurrió un error inesperado, intenta nuevamente.', m);
+    }
   }
 };
 
