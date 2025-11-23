@@ -184,9 +184,8 @@ const handler = async (m, { conn, args }) => {
   }
 }
 
-handler.help = ['qc']
-handler.tags = ['sticker']
+handler.help = ['𝖰𝖼']
+handler.tags = ['𝖲𝖳𝖨𝖢𝖪𝖤𝖱𝖲']
 handler.command = /^(qc|quotely)$/i
-handler.register = false
 
 export default handler
