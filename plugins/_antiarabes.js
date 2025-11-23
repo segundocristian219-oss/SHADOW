@@ -1,36 +1,145 @@
-// plugins/antiarabes_participants.js
+// plugins/antiarabe.js — ESM + sistema de guardado en ./tmp/antiarabe.json
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const arabes = [
-  "20","212","213","216","218","222","224","230","234","235","237","238","249",
-  "250","251","252","253","254","255","257","258","260","263","269","960","961",
-  "962","963","964","965","966","967","968","970","971","972","973","974","975",
-  "976","980","981","992","994","995","998"
-];
+// --- Utilidades dirname (ESM) ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
-export async function participantsUpdate({ id, participants, action }, { conn }) {
-  if (action !== "add") return;
+// --- Ruta donde se guardará el estado ---
+const TMP_DIR = path.join(process.cwd(), "tmp");
+const DB_FILE = path.join(TMP_DIR, "antiarabe.json");
 
-  const chat = global.db.data.chats[id] || {};
-  if (!chat.antiArabes) return; // si está desactivado → no hace nada
+// Crear carpeta ./tmp si no existe
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
 
-  for (let user of participants) {
-    const number = user.split("@")[0];
+// Crear archivo antiarabe.json si no existe
+if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, "{}");
 
-    // toma prefijo (códigos de país)
-    const prefix = number.slice(0, number.length - 7);
-
-    if (arabes.includes(prefix)) {
-      try {
-        await conn.sendMessage(id, {
-          text: `🚫 El número *+${number}* no está permitido en este grupo.`,
-          mentions: [user]
-        });
-
-        await conn.groupParticipantsUpdate(id, [user], "remove");
-
-      } catch (err) {
-        console.error("Error expulsando árabe:", err);
-      }
-    }
+// --- Mini base: get/set/delete ---
+function loadData() {
+  try {
+    return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+  } catch {
+    return {};
   }
 }
+
+function saveData(obj) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(obj, null, 2));
+}
+
+function setConfig(chatId, value) {
+  const db = loadData();
+  db[chatId] = value;
+  saveData(db);
+}
+
+function deleteConfig(chatId) {
+  const db = loadData();
+  delete db[chatId];
+  saveData(db);
+}
+
+function getConfig(chatId) {
+  const db = loadData();
+  return db[chatId];
+}
+
+
+const DIGITS = (s = "") => String(s).replace(/\D/g, "");
+
+/** Si un participante viene como @lid y tiene .jid (real), usa ese real */
+function lidParser(participants = []) {
+  try {
+    return participants.map(v => ({
+      id: (typeof v?.id === "string" && v.id.endsWith("@lid") && v.jid) ? v.jid : v.id,
+      admin: v?.admin ?? null,
+      raw: v
+    }));
+  } catch {
+    return participants || [];
+  }
+}
+
+/** Verifica admin por NÚMERO */
+async function isAdminByNumber(conn, chatId, number) {
+  try {
+    const meta = await conn.groupMetadata(chatId);
+    const raw  = Array.isArray(meta?.participants) ? meta.participants : [];
+    const norm = lidParser(raw);
+
+    const adminNums = new Set();
+    for (let i = 0; i < raw.length; i++) {
+      const r = raw[i], n = norm[i];
+      const flag = (r?.admin === "admin" || r?.admin === "superadmin" ||
+                    n?.admin === "admin" || n?.admin === "superadmin");
+      if (flag) {
+        [r?.id, r?.jid, n?.id].forEach(x => {
+          const d = DIGITS(x || "");
+          if (d) adminNums.add(d);
+        });
+      }
+    }
+    return adminNums.has(number);
+  } catch {
+    return false;
+  }
+}
+
+
+const handler = async (msg, { conn }) => {
+  const chatId    = msg.key.remoteJid;
+  const isGroup   = chatId.endsWith("@g.us");
+  const senderJid = msg.key.participant || msg.key.remoteJid;
+  const senderNo  = DIGITS(senderJid);
+  const isFromMe  = !!msg.key.fromMe;
+
+  if (!isGroup) {
+    await conn.sendMessage(chatId, { text: "❌ Este comando solo puede usarse en grupos." }, { quoted: msg });
+    return;
+  }
+
+  await conn.sendMessage(chatId, { react: { text: "🛡️", key: msg.key } }).catch(() => {});
+
+  const isAdmin = await isAdminByNumber(conn, chatId, senderNo);
+
+  // Owners (opcional)
+  let owners = [];
+  try { owners = JSON.parse(fs.readFileSync(path.join(__dirname, "../owner.json"), "utf-8")); }
+  catch { owners = global.owner || []; }
+
+  const isOwner = Array.isArray(owners) && owners.some(([id]) => id === senderNo);
+
+  if (!isAdmin && !isOwner && !isFromMe) {
+    await conn.sendMessage(chatId, {
+      text: "🚫 Solo los administradores pueden activar o desactivar el antiárabe."
+    }, { quoted: msg });
+    return;
+  }
+
+  const body   = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+  const estado = (body.trim().split(/\s+/)[1] || "").toLowerCase();
+
+  if (!["on", "off"].includes(estado)) {
+    await conn.sendMessage(chatId, { text: "✳️ Usa:\n\n.antiarabe on / off" }, { quoted: msg });
+    return;
+  }
+
+  if (estado === "on") {
+    setConfig(chatId, 1);
+  } else {
+    deleteConfig(chatId);
+  }
+
+  await conn.sendMessage(chatId, {
+    text: `🛡️ AntiÁrabe ha sido *${estado === "on" ? "activado" : "desactivado"}* correctamente en este grupo.`
+  }, { quoted: msg });
+
+  await conn.sendMessage(chatId, { react: { text: "✅", key: msg.key } }).catch(() => {});
+  console.log(`AntiArabe ${estado.toUpperCase()} guardado en tmp/antiarabe.json para ${chatId}`);
+};
+
+handler.command = ["antiarabe"];
+export default handler;
