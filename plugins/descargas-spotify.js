@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 const handler = async (msg, { conn, args, command }) => {
   const chatId = msg.key.remoteJid;
@@ -18,28 +18,21 @@ ${pref}${command} Bad Bunny Monaco`
   });
 
   try {
-
     let trackUrl = text;
 
-    // --------------------------
-    // 🔍 SI NO ES LINK → BUSCAR
-    // --------------------------
+    // 🔍 Si no es link → buscar
     if (!/^https?:\/\/(www\.)?open\.spotify\.com\/track\//.test(text)) {
       const searchUrl = `https://api.neoxr.eu/api/spotify-search?query=${encodeURIComponent(text)}&apikey=russellxz`;
-
       const s = await fetch(searchUrl);
       const sjson = await s.json();
 
       if (!sjson.status || !sjson.data || sjson.data.length === 0)
         throw new Error("No se encontraron resultados en Spotify.");
 
-      // primera canción encontrada
-      trackUrl = sjson.data[0].url;
+      trackUrl = sjson.data[0].url; // primera canción encontrada
     }
 
-    // ------------------------------------
-    // 🎧 OBTENER INFO Y DESCARGAR POR LINK
-    // ------------------------------------
+    // Obtener info y descargar
     const apiUrl = `https://api.neoxr.eu/api/spotify?url=${encodeURIComponent(trackUrl)}&apikey=russellxz`;
     const response = await fetch(apiUrl);
     if (!response.ok) throw new Error(`API error: ${response.statusText}`);
@@ -64,10 +57,9 @@ ${pref}${command} Bad Bunny Monaco`
     const audioRes = await fetch(song.url);
     if (!audioRes.ok) throw new Error("No se pudo descargar el audio.");
 
-    const audioBuffer = await audioRes.buffer();
-
+    const audioBuffer = await audioRes.arrayBuffer(); // moderno
     await conn.sendMessage(chatId, {
-      audio: audioBuffer,
+      audio: Buffer.from(audioBuffer),
       mimetype: 'audio/mpeg',
       fileName: `${song.title}.mp3`
     }, { quoted: msg });
@@ -90,4 +82,4 @@ ${pref}${command} Bad Bunny Monaco`
 };
 
 handler.command = ["spotify"];
-module.exports = handler;
+export default handler;
