@@ -22,7 +22,10 @@ let handler = async (m, { conn }) => {
     m.reply(`📋 *Revisión de plugins:*\n\n${report.join('\n')}`)
 }
 
+
+handler.help = ["𝖱𝖾𝗏𝗉"]
+handler.tags = ["𝖮𝖶𝖭𝖤𝖱"]
 handler.command = /^revp$/i
-handler.rowner = true // solo owner
+handler.rowner = true
 
 export default handler
