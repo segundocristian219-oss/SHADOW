@@ -72,8 +72,8 @@ let handler = async (m, { conn, usedPrefix, command }) => {
   }
 }
 
-handler.help = ['hd']
-handler.tags = ['ia']
+handler.help = ['𝖧𝖽']
+handler.tags = ['𝖳𝖮𝖮𝖫𝖲']
 handler.command = ['hd']
 
 export default handler
