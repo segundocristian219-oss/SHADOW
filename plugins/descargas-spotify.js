@@ -110,7 +110,7 @@ const handler = async (msg, { conn, text, command }) => {
   if(command === "spotify") await handlePlay(conn, chatId, text, msg)
 }
 
-handler.help = ["play"]
-handler.tags = ["descargas"]
+handler.help = ["𝖲𝗉𝗈𝗍𝗂𝖿𝗒 <𝗍𝖾𝗑𝗍𝗈>"]
+handler.tags = ["𝖣𝖤𝖲𝖢𝖠𝖱𝖦𝖠𝖲"]
 handler.command = ["spotify"]
 export default handler
