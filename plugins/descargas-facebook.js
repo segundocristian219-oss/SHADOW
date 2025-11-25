@@ -84,7 +84,7 @@ const handler = async (msg, { conn, args, command }) => {
 }
 
 handler.command = ["facebook", "fb"]
-handler.help = ["facebook <𝗎𝗋𝗅>"]
+handler.help = ["𝖥acebook <𝗎𝗋𝗅>"]
 handler.tags = ["𝖣𝖤𝖲𝖢𝖠𝖱𝖦𝖠𝖲"]
 
 export default handler
