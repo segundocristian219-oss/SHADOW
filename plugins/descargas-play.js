@@ -302,7 +302,7 @@ const handler = async (msg, { conn, text, command }) => {
 ┃⥤👤 *Autor:* ${author?.name || author || "Desconocido"}
 ┗━━━━━━━━━━━━━━━━┛
 
-┏━━━━━━━━━━━━━━━━
+┏━━━━━━━━━━━━━━━━┓
 ┃📥 *Reacciona para descargar:*
 ┃↦👍 Audio MP3
 ┃↦❤️ Video MP4
