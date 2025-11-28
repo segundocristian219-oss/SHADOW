@@ -15,15 +15,13 @@ global.botname = '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍'
 global.banner = 'https://cdn.russellxz.click/88dd19a7.jpeg'
 global.packname = '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍'
 global.author = '𝖣𝖾𝗌𝖺𝗋𝗋𝗈𝗅𝗅𝖺𝖽𝗈 𝗉𝗈𝗋 𝖠𝗇𝗀𝖾𝗅'
-global.moneda = '𝖠𝗇𝗀𝖾𝗅𝖼𝗈𝗂𝗇𝗌'
 global.libreria = 'Baileys'
 global.baileys = 'V 6.7.16'
 global.vs = '2.2.0'
 global.usedPrefix = '.'
 global.user2 = '18'
 global.sessions = '𝖠𝗇𝗀𝖾𝗅𝖡𝗈𝗍'
-global.jadi = '𝖠𝗇𝗀𝖾𝗅𝖻𝗈𝗍𝗌'
-global.yukiJadibts = true
+
 
 global.namecanal = '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍 𝖣𝖾𝗌𝖺𝗋𝗋𝗈𝗅𝗅𝗈'
 global.idcanal = '120363402177795471@newsletter'
