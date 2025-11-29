@@ -65,9 +65,11 @@ const handler = async (m, { conn }) => {
   }
 };
 
-handler.help = ["link", "enlace"];
-handler.tags = ["grupo"];
-handler.command = /^(link|enlace)$/i;
+handler.help = ["𝖫𝗂𝗇𝗄"];
+handler.tags = ["𝖦𝖱𝖴𝖯𝖮𝖲"];
+handler.customPrefix = /^\.?(link)$/i;
+handler.command = new RegExp();
 handler.group = true;
+handler.admin = true;
 
 export default handler;
