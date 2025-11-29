@@ -55,7 +55,7 @@ ${cmds.map(cmd => `⭒ ִֶָ७ ꯭🍄˙⋆｡ - ${cmd}`).join('\n')}
   await conn.sendMessage(
     m.chat,
     {
-      video: { url: "https://cdn.russellxz.click/a1fe9136.mp4" },
+      video: { url: "https://cdn.russellxz.click/d20bd1d4.mp4" },
       caption: menuText,
       gifPlayback: true,
       ...(global.rcanal || {}),
