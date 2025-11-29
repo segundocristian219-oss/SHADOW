@@ -1,84 +1,51 @@
-import fetch from "node-fetch";
-
 const handler = async (m, { conn }) => {
   const chat = m.chat;
 
-  if (!chat.endsWith("@g.us")) {
-    return conn.sendMessage(chat, {
-      text: "❌ Este comando solo funciona en *grupos*."
-    }, { quoted: m });
-  }
+  conn.sendMessage(chat, {
+    react: { text: "🔗", key: m.key }
+  });
 
   try {
-    // Obtener metadata + link al mismo tiempo (PARALELO)
     const [meta, code] = await Promise.all([
       conn.groupMetadata(chat),
-      conn.groupInviteCode(chat)
+      conn.groupInviteCode(chat).catch(() => null)
     ]);
 
-    if (!code) {
-      return conn.sendMessage(chat, {
-        text: "🚫 Necesito ser *administrador* para obtener el link del grupo."
-      }, { quoted: m });
-    }
-
     const groupName = meta.subject || "Grupo";
-    const link = `https://chat.whatsapp.com/${code}`;
-
-    // ==============================
-    // FOTO DEL GRUPO - ultra rápida
-    // ==============================
+    const link = code 
+      ? `https://chat.whatsapp.com/${code}` 
+      : "Sin enlace disponible";
 
     const fallback = "https://files.catbox.moe/xr2m6u.jpg";
+    let ppBuffer;
 
-    const getPhoto = async () => {
-      try {
-        const url = await conn.profilePictureUrl(chat, "image").catch(() => null);
-        if (!url) return null;
-
+    try {
+      const url = await conn.profilePictureUrl(chat, "image").catch(() => null);
+      if (url) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-
+        const idTimeout = setTimeout(() => controller.abort(), 5000);
         const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-
-        if (!res.ok) return null;
-        return Buffer.from(await res.arrayBuffer());
-      } catch {
-        return null;
+        clearTimeout(idTimeout);
+        if (res.ok) ppBuffer = Buffer.from(await res.arrayBuffer());
       }
-    };
+    } catch {}
 
-    // FOTO: si falla → fallback instantáneo (Promise.race)
-    const ppBuffer = await Promise.race([
-      getPhoto(),
-      new Promise(resolve => setTimeout(() => resolve(null), 6000))
-    ]) || await fetch(fallback).then(r => r.buffer());
+    if (!ppBuffer) {
+      const res = await fetch(fallback);
+      ppBuffer = Buffer.from(await res.arrayBuffer());
+    }
 
-    // ==============================
-    // CAPTION
-    // ==============================
-    const caption =`*${groupName}*\n${link}
-`;
-
-    // ==============================
-    // ENVÍO OPTIMIZADO
-    // ==============================
-
-    await conn.sendMessage(chat, {
-      image: ppBuffer,
-      caption
-    }, { quoted: m });
-
-    conn.sendMessage(chat, {
-      react: { text: "🔗", key: m.key }
-    });
+    await conn.sendMessage(
+      chat,
+      {
+        image: ppBuffer,
+        caption: `*${groupName}*\n${link}`
+      },
+      { quoted: m }
+    );
 
   } catch (err) {
-    console.error("❌ Error en .link:", err);
-    conn.sendMessage(chat, {
-      text: "⚠️ Error inesperado al obtener el link."
-    }, { quoted: m });
+    console.error("Error en .link:", err);
   }
 };
 
