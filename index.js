@@ -374,7 +374,9 @@ conn.credsUpdate = saveCreds.bind(global.conn, true)
 const chats = Object.entries(conn.chats || {})
   .filter(([jid, chat]) => !jid.endsWith('@g.us') && chat.isChats)
   .map(([jid]) => jid) else {
-const chats = Object.entries(conn.chats).filter(([jid, chat]) => !jid.endsWith('@g.us') && chat.isChats).map((v) => v[0])
+const chats = Object.entries(conn.chats || {})
+  .filter(([jid, chat]) => !jid.endsWith('@g.us') && chat?.isChats)
+  .map(([jid]) => jid)
 }
 conn.ev.on('messages.upsert', conn.handler)
 conn.ev.on('connection.update', conn.connectionUpdate)
