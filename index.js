@@ -377,7 +377,9 @@ const chats = Object.entries(conn.chats || {})
 }
 conn.ev.on('messages.upsert', conn.handler)
 if (typeof conn.connectionUpdate === 'function')
+if (typeof conn.connectionUpdate === 'function') {
     conn.ev.on('connection.update', conn.connectionUpdate)
+}
 conn.ev.on('creds.update', conn.credsUpdate)
 isInit = false
 //return true
