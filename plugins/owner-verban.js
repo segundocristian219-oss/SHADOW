@@ -1,123 +1,148 @@
 let handler = async (m, { conn, args }) => {
+
     if (!args[0]) return m.reply(`⚠️ *Falta el número*\n\n📌 *Ejemplo:* .wa +52 722 758 4934`);
 
     const number = args.join(" ").replace(/\D/g, "");
     const jid = number + "@s.whatsapp.net";
 
-    await m.reply(`🔍 *Analizando número con 7 métodos internos...*`);
+    await m.reply(`🔍 *Analizando número con 7 métodos internos de WhatsApp...*`);
 
+    // Contenedor de señales
     let report = {
         exists: false,
         pp: false,
         status: false,
         assert: false,
         presence: false,
-        blockList: true,
+        blockList: false,
         tmpError: false,
         permError: false,
         raw: ""
     };
 
     try {
-        // 1) EXISTE EN SERVIDORES WA
+
+        // 1) EXISTENCIA REAL
         try {
             const wa = await conn.onWhatsApp(jid);
             report.exists = !!(wa && wa[0] && wa[0].exists);
-        } catch {}
+        } catch (e) {}
 
         // 2) FOTO DE PERFIL
         try {
             await conn.profilePictureUrl(jid, 'image');
             report.pp = true;
-        } catch {}
+        } catch (e) {}
 
-        // 3) STATUS ("Info" o "Hey there")
+        // 3) STATUS
         try {
             await conn.fetchStatus(jid);
             report.status = true;
-        } catch {}
+        } catch (e) {}
 
-        // 4) VALIDACIÓN DE JID INTERNA
+        // 4) assertJidExists (fuerte)
         try {
             await conn.assertJidExists(jid);
             report.assert = true;
-        } catch {}
+        } catch (e) {}
 
-        // 5) PRESENCIA SILENCIOSA (NO NOTIFICA)
+        // 5) presenceSubscribe (silencioso)
         try {
             await conn.presenceSubscribe(jid);
             report.presence = true;
-        } catch {}
+        } catch (e) {}
 
-        // 6) PARSEAR LISTA DE BLOQUEADOS (USADO PARA DETECTAR CUENTAS FANTASMA)
+        // 6) blocklist
         try {
             await conn.fetchBlocklist();
             report.blockList = true;
-        } catch {}
+        } catch (e) {}
 
-    } catch (err) {
-        report.raw = err?.message || "";
+    } catch (e) {
+        report.raw = e?.message || "";
     }
 
-    // 7) PATRONES DE ERROR INTERNOS
-    const msg = report.raw.toLowerCase();
+    // 7) patrones de error
+    const msg = (report.raw || "").toLowerCase();
     report.tmpError = /temporar|not-allowed|retry|too many/i.test(msg);
-    report.permError = /404|unreg|does not|no record/i.test(msg);
+    report.permError = /404|unreg|does not|no record|unregistered/i.test(msg);
 
-    // ========================================
-    // 🔥 LÓGICA DE DECISIÓN ULTRA-PRECISA
-    // ========================================
+    // ======================================
+    // SISTEMA DE SCORING ULTRA PRECISO
+    // ======================================
 
-    // PERMANENTE (100% seguro)
-    if (!report.exists && !report.pp && !report.assert) {
-        return m.reply(
-`📱 Número: https://wa.me/${number}
+    const WEIGHTS = {
+        exists: 35,
+        assert: 35,
+        presence: 20,
+        status: 12,
+        pp: 8,
+        blockList: 3,
+        permError: -80,
+        tmpError: -40
+    };
 
-🔴 *ESTADO: BLOQUEO PERMANENTE (BAN REAL)*
-▪ No existe en WA
-▪ No tiene foto
-▪ Falló assertJidExists
-▪ No validó presencia
+    let rawScore = 0;
 
-🔎 *Precision:* 99%`
-        );
+    rawScore += report.exists ? WEIGHTS.exists : 0;
+    rawScore += report.assert ? WEIGHTS.assert : 0;
+    rawScore += report.presence ? WEIGHTS.presence : 0;
+    rawScore += report.status ? WEIGHTS.status : 0;
+    rawScore += report.pp ? WEIGHTS.pp : 0;
+    rawScore += report.blockList ? WEIGHTS.blockList : 0;
+    rawScore += report.permError ? WEIGHTS.permError : 0;
+    rawScore += report.tmpError ? WEIGHTS.tmpError : 0;
+
+    // Normalización 0-100
+    let score = Math.max(0, Math.min(100, Math.round(((rawScore + 100) / 200) * 100)));
+
+    // Forzar si es ban permanente claro
+    if (report.permError && !report.exists) score = Math.min(score, 15);
+
+    // ======================================
+    // DECISIÓN FINAL POR UMBRALES
+    // ======================================
+    let label = "INDETERMINADO";
+
+    if (report.permError && !report.exists && !report.assert) {
+        label = "🔴 BLOQUEO PERMANENTE (ALTA PRECISIÓN)";
+    } else if (score >= 85) {
+        label = "🟢 ACTIVO (NO BANEADO)";
+    } else if (score >= 65) {
+        label = "🟡 POSIBLE ACTIVO";
+    } else if (score >= 40) {
+        label = "⚪ INDETERMINADO (SEÑALES MIXTAS)";
+    } else {
+        label = "🔴 PROBABLE BLOQUEO";
     }
 
-    // TEMPORAL
-    if (report.exists && report.permError === false && !report.presence && !report.status) {
-        return m.reply(
-`📱 Número: https://wa.me/${number}
+    // ======================================
+    // RESPUESTA FINAL
+    // ======================================
 
-🟠 *ESTADO: BLOQUEO TEMPORAL*
-▪ Existe en WA
-▪ Pero falla presencia y status
-▪ No permite consultas internas
+    const out = [
+        `📱 Número: https://wa.me/${number}`,
+        ``,
+        `*${label}*`,
+        ``,
+        `📊 *Score:* ${score}%`,
+        ``,
+        `🧩 *Señales detectadas:*`,
+        `• Existe: ${report.exists ? "✔" : "✘"}`,
+        `• assertJidExists: ${report.assert ? "✔" : "✘"}`,
+        `• Presence: ${report.presence ? "✔" : "✘"}`,
+        `• Estado (Status): ${report.status ? "✔" : "✘"}`,
+        `• Foto (PP): ${report.pp ? "✔" : "✘"}`,
+        ``,
+        `🧪 *Errores:*`,
+        `• Temporal: ${report.tmpError ? "✔" : "✘"}`,
+        `• Permanente: ${report.permError ? "✔" : "✘"}`,
+        ``,
+        `📄 *Detalles:*`,
+        report.raw || "Sin errores detectados."
+    ].join("\n");
 
-🔎 *Precision:* 92%`
-        );
-    }
-
-    // EXISTE Y NO ESTÁ BANEADO
-    if (report.exists && (report.pp || report.status || report.assert)) {
-        return m.reply(
-`📱 Número: https://wa.me/${number}
-
-🟢 *ESTADO: ACTIVO (NO BANEADO)*
-▪ Verificación completa exitosa
-
-🔎 *Precision:* 97%`
-        );
-    }
-
-    // INDETERMINADO (LOS MÁS RAROS)
-    return m.reply(
-`📱 Número: https://wa.me/${number}
-
-⚪ *ESTADO: INDETERMINADO*
-Algunas pruebas no coinciden.
-
-🔎 *Precision:* 50%`
-    );
+    return m.reply(out);
 };
 
 handler.command = /^wa$/i;
