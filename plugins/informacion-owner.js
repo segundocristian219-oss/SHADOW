@@ -2,8 +2,8 @@ import pkg from '@whiskeysockets/baileys'
 const { generateWAMessageContent, generateWAMessageFromContent, proto } = pkg
 
 let handler = async (m, { conn }) => {
-
-  await conn.sendMessage(m.chat, { react: { text: "🔥", key: m.key } })
+  const proses = `✨\n *Obteniendo información de mis creadores...*`
+  await conn.sendMessage(m.chat, { text: proses }, { quoted: m })
 
   async function createImage(url) {
     const { imageMessage } = await generateWAMessageContent(
@@ -15,27 +15,23 @@ let handler = async (m, { conn }) => {
 
   const owners = [
     {
-      name: '𝖠𝗇𝗀𝖾𝗅.𝗑𝗒𝗓',
-      desc: `𝖢𝗋𝖾𝖺𝖽𝗈𝗋 𝗒 𝖣𝖾𝗌𝖺𝗋𝗋𝗈𝗅𝗅𝖺𝖽𝗈𝗋 𝖯𝗋𝗂𝗇𝖼𝗂𝗉𝖺𝗅 𝖣𝖾 𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍 👑`,
-      image: 'https://cdn.russellxz.click/b1af0aef.jpeg',
+      name: '𝖧𝖾𝗋𝗇𝖺𝗇𝖽𝖾𝗌.𝗑𝗒𝗓',
+      desc: `👑 Creador Principal de 𝖡𝖺𝗄𝗂-𝖡𝗈𝗍`,
+      image: 'https://cdn.russellxz.click/af65870a.jpeg',
+      footer: '𝗄𝗄',
       buttons: [
-        { name: 'WhatsApp', url: 'https://wa.me/5521959197313' }
+        { name: 'WhatsApp', url: 'https://wa.me/5215648181095' }
+
       ]
     },
     {
-      name: '𝖠𝗇𝗀𝖾𝗅.𝖿𝗀𝗓',
-      desc: '𝖴𝗇𝗈 𝖣𝖾 𝖫𝗈𝗌 𝖨𝗇𝗏𝖾𝗋𝗌𝗂𝗈𝗇𝗂𝗌𝗍𝖺𝗌 𝖯𝗋𝗂𝗇𝖼𝗂𝗉𝖺𝗅𝖾𝗌 🗣️',
-      image: 'https://cdn.russellxz.click/295d5247.jpeg',
+      name: 'Cristian.𝗑𝗒𝗓',
+      desc: 'tester oficial 🏞️',
+      image: 'https://cdn.russellxz.click/54ba5eb9.jpeg',
+      footer: '𝖭𝗂𝖼𝖾 𝖣𝗈 𝖸𝗈𝗎',
       buttons: [
-        { name: 'WhatsApp', url: 'https://wa.me/5215584393251' }
-      ]
-    },
-    {
-      name: '𝖱𝖾𝗒𝖾𝗌 🫅',
-      desc: '𝖨𝗇𝗏𝖾𝗋𝗌𝗂𝗈𝗇𝗂𝗌𝗍𝖺 𝖯𝗋𝗂𝗇𝖼𝗂𝗉𝖺𝗅 𝖣𝖾 𝖫𝗈𝗌 𝖭𝗎𝗆𝖾𝗋𝗈𝗌 𝖯𝖺𝗋𝖺 𝖠𝖼𝗍𝗂𝗏𝖺𝗋 𝖤𝗅 𝖡𝗈𝗍 🗣️',
-      image: 'https://cdn.russellxz.click/24a3b428.jpeg',
-      buttons: [
-        { name: 'WhatsApp', url: 'https://wa.me/5218991555766' }
+        { name: 'WhatsApp', url: 'https://wa.me/5215648181095' }
+
       ]
     }
   ]
@@ -79,6 +75,12 @@ let handler = async (m, { conn }) => {
             deviceListMetadataVersion: 2
           },
           interactiveMessage: proto.Message.InteractiveMessage.fromObject({
+            body: proto.Message.InteractiveMessage.Body.create({
+              text: `👑 Creadores de baki Bot`
+            }),
+            footer: proto.Message.InteractiveMessage.Footer.create({
+              text: 'Conoce a los desarrolladores del bot'
+            }),
             carouselMessage: proto.Message.InteractiveMessage.CarouselMessage.fromObject({
               cards
             })
@@ -92,6 +94,7 @@ let handler = async (m, { conn }) => {
   await conn.relayMessage(m.chat, slideMessage.message, { messageId: slideMessage.key.id })
 }
 
+handler.tags = ['main']
 handler.command = handler.help = ['donar', 'owner', 'cuentasoficiales', 'creador', 'cuentas']
 
 export default handler
